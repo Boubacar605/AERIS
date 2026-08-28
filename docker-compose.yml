@@ -1,0 +1,168 @@
+services:
+  # ===== SERVICES CLOUD =====
+  service-tuberculose-cloud:
+    build: ./services/service-tuberculose
+    container_name: aeris-tb-cloud
+    ports:
+      - "${SERVICE_TB_PORT:-8001}:8001"
+    environment:
+      - SERVICE_TB_PORT=8001
+      - SERVICE_TB_CHEMIN_MODELE=/app/modeles_entraines/modele_tuberculose.h5
+      - MODE_DEPLOIEMENT=cloud
+    volumes:
+      - ./services/service-tuberculose/modeles_entraines:/app/modeles_entraines
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/sante"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    profiles:
+      - cloud
+      - complet
+    networks:
+      - aeris-reseau
+
+  service-pneumonie-cloud:
+    build: ./services/service-pneumonie
+    container_name: aeris-pn-cloud
+    ports:
+      - "${SERVICE_PN_PORT:-8002}:8002"
+    environment:
+      - SERVICE_PN_PORT=8002
+      - SERVICE_PN_CHEMIN_MODELE=/app/modeles_entraines/modele_pneumonie.h5
+      - MODE_DEPLOIEMENT=cloud
+    volumes:
+      - ./services/service-pneumonie/modeles_entraines:/app/modeles_entraines
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8002/sante"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    profiles:
+      - cloud
+      - complet
+    networks:
+      - aeris-reseau
+
+  # ===== SERVICES EDGE (ressources limitees) =====
+  service-tuberculose-edge:
+    build: ./services/service-tuberculose
+    container_name: aeris-tb-edge
+    ports:
+      - "8011:8001"
+    environment:
+      - SERVICE_TB_PORT=8001
+      - SERVICE_TB_CHEMIN_MODELE=/app/modeles_entraines/modele_tuberculose.h5
+      - MODE_DEPLOIEMENT=edge
+    volumes:
+      - ./services/service-tuberculose/modeles_entraines:/app/modeles_entraines
+    deploy:
+      resources:
+        limits:
+          cpus: "${EDGE_LIMITE_CPU:-1.0}"
+          memory: "${EDGE_LIMITE_MEMOIRE:-512m}"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/sante"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    profiles:
+      - edge
+      - complet
+    networks:
+      - aeris-reseau
+
+  service-pneumonie-edge:
+    build: ./services/service-pneumonie
+    container_name: aeris-pn-edge
+    ports:
+      - "8012:8002"
+    environment:
+      - SERVICE_PN_PORT=8002
+      - SERVICE_PN_CHEMIN_MODELE=/app/modeles_entraines/modele_pneumonie.h5
+      - MODE_DEPLOIEMENT=edge
+    volumes:
+      - ./services/service-pneumonie/modeles_entraines:/app/modeles_entraines
+    deploy:
+      resources:
+        limits:
+          cpus: "${EDGE_LIMITE_CPU:-1.0}"
+          memory: "${EDGE_LIMITE_MEMOIRE:-512m}"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8002/sante"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    profiles:
+      - edge
+      - complet
+    networks:
+      - aeris-reseau
+
+  # ===== MOTEUR DE DECISION =====
+  moteur-decision:
+    build: ./services/moteur-decision
+    container_name: aeris-moteur-decision
+    ports:
+      - "${MOTEUR_DECISION_PORT:-8003}:8003"
+    environment:
+      - MOTEUR_DECISION_PORT=8003
+      - URL_SERVICE_TB_EDGE=http://service-tuberculose-edge:8001
+      - URL_SERVICE_TB_CLOUD=http://service-tuberculose-cloud:8001
+      - URL_SERVICE_PN_EDGE=http://service-pneumonie-edge:8002
+      - URL_SERVICE_PN_CLOUD=http://service-pneumonie-cloud:8002
+      - PROMETHEUS_URL=http://prometheus:9090
+      - SEUIL_CPU=${SEUIL_CPU:-80}
+      - SEUIL_RAM=${SEUIL_RAM:-85}
+      - SEUIL_LATENCE_MS=${SEUIL_LATENCE_MS:-100}
+    depends_on:
+      service-tuberculose-cloud:
+        condition: service_healthy
+      service-pneumonie-cloud:
+        condition: service_healthy
+      prometheus:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8003/sante"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    profiles:
+      - complet
+    networks:
+      - aeris-reseau
+
+  # ===== MONITORING =====
+  prometheus:
+    image: prom/prometheus:v2.48.0
+    container_name: aeris-prometheus
+    ports:
+      - "${PROMETHEUS_PORT:-9090}:9090"
+    volumes:
+      - ./infrastructure/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus-donnees:/prometheus
+    profiles:
+      - monitoring
+      - complet
+    networks:
+      - aeris-reseau
+
+  # ===== TABLEAU DE BORD =====
+  tableau-de-bord:
+    build: ./tableau-de-bord
+    container_name: aeris-tableau-de-bord
+    ports:
+      - "${TABLEAU_DE_BORD_PORT:-3000}:3000"
+    environment:
+      - VITE_URL_API=http://localhost:${MOTEUR_DECISION_PORT:-8003}
+    profiles:
+      - complet
+    networks:
+      - aeris-reseau
+
+volumes:
+  prometheus-donnees:
+
+networks:
+  aeris-reseau:
+    driver: bridge

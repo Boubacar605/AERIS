@@ -1,0 +1,39 @@
+global:
+  scrape_interval: 5s
+  evaluation_interval: 5s
+
+scrape_configs:
+  - job_name: "service-tuberculose-cloud"
+    static_configs:
+      - targets: ["service-tuberculose-cloud:8001"]
+        labels:
+          service: "tuberculose"
+          couche: "cloud"
+
+  - job_name: "service-tuberculose-edge"
+    static_configs:
+      - targets: ["service-tuberculose-edge:8001"]
+        labels:
+          service: "tuberculose"
+          couche: "edge"
+
+  - job_name: "service-pneumonie-cloud"
+    static_configs:
+      - targets: ["service-pneumonie-cloud:8002"]
+        labels:
+          service: "pneumonie"
+          couche: "cloud"
+
+  - job_name: "service-pneumonie-edge"
+    static_configs:
+      - targets: ["service-pneumonie-edge:8002"]
+        labels:
+          service: "pneumonie"
+          couche: "edge"
+
+  - job_name: "moteur-decision"
+    static_configs:
+      - targets: ["moteur-decision:8003"]
+        labels:
+          service: "moteur-decision"
+          couche: "controle"

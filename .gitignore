@@ -1,0 +1,70 @@
+# === Python ===
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+*.egg-info/
+dist/
+build/
+.eggs/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# === Modeles IA (fichiers volumineux) ===
+*.onnx
+*.pt
+*.pth
+*.h5
+*.tflite
+*.pb
+*.keras
+!*/.gitkeep
+
+# === Node.js ===
+node_modules/
+npm-debug.log*
+.next/
+
+# === IDE ===
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# === Environnement ===
+.env
+.env.local
+.env.*.local
+
+# === OS ===
+.DS_Store
+Thumbs.db
+
+# === Docker ===
+docker-compose.override.yml
+
+# === Donnees (jeux de donnees volumineux) ===
+donnees/tuberculose/
+donnees/pneumonie/
+
+# === Resultats d'experimentations (volumineux) ===
+experimentations/resultats/*.csv
+experimentations/resultats/*.json
+experimentations/resultats/*.png
+!experimentations/resultats/.gitkeep
+
+# === Monitoring ===
+infrastructure/grafana/data/
+
+# === Logs ===
+*.log
+logs/
+
+# === Carnets Jupyter ===
+.ipynb_checkpoints/
