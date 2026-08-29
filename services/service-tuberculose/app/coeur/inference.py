@@ -1,49 +1,74 @@
 """Module d'inference pour la detection de la tuberculose.
 
-Ce module charge le modele pre-entraine et effectue les predictions
-sur les radiographies thoraciques soumises.
+Charge le modele CNN pre-entraine (Keras .h5) et effectue les predictions
+sur les radiographies thoraciques. Le modele provient du notebook Kaggle
+"Tuberculosis (TB) Analyzer + Web App" (vbookshelf), entraine sur les
+datasets Shenzhen (Chine) et Montgomery (USA).
 
-TODO: Integrer le vrai modele Keras/TensorFlow (.h5 ou SavedModel)
-      issu du notebook Kaggle (CNN, datasets Shenzhen + Montgomery).
+Specifications du modele :
+- Entree : image 96x96 pixels, 3 canaux (RGB), normalisee [0, 1]
+- Sortie : softmax 2 classes [Normal=0, Tuberculosis=1]
 """
 
+import io
+import logging
+
 import numpy as np
+from PIL import Image
 
 from app.config import config
 from app.schemas.schemas_diagnostic import ReponseDiagnostic
 
+logger = logging.getLogger(__name__)
 
-async def charger_modele() -> None:
-    """Charge le modele de detection de tuberculose depuis le disque.
+TAILLE_IMAGE = 96
+CLASSES = ["Normal", "Tuberculosis"]
 
-    TODO: Implementer le chargement reel avec tensorflow.keras.models.load_model()
-    """
-    pass
+_modele = None
 
 
-async def preprocesser_image(contenu_image: bytes) -> np.ndarray:
+def charger_modele() -> None:
+    """Charge le modele de detection de tuberculose depuis le disque."""
+    global _modele
+    if _modele is not None:
+        return
+
+    from tensorflow.keras.models import load_model
+
+    chemin = config.service_tb_chemin_modele
+    logger.info("Chargement du modele tuberculose depuis %s", chemin)
+    _modele = load_model(chemin)
+    logger.info("Modele tuberculose charge avec succes")
+
+
+def preprocesser_image(contenu_image: bytes) -> np.ndarray:
     """Preprocesse l'image brute pour la rendre compatible avec le modele.
 
-    TODO: Implementer le redimensionnement (224x224 ou taille attendue par le CNN),
-          normalisation des pixels [0, 1], conversion en niveaux de gris si necessaire.
+    - Conversion en RGB (3 canaux)
+    - Redimensionnement a 96x96
+    - Normalisation des pixels dans [0, 1]
     """
-    return np.zeros((1, 224, 224, 1), dtype=np.float32)
+    image = Image.open(io.BytesIO(contenu_image))
+    image = image.convert("RGB")
+    image = image.resize((TAILLE_IMAGE, TAILLE_IMAGE))
+    tableau = np.array(image, dtype=np.float32) / 255.0
+    tableau = np.expand_dims(tableau, axis=0)
+    return tableau
 
 
 async def effectuer_inference(contenu_image: bytes) -> ReponseDiagnostic:
-    """Effectue l'inference sur une image de radiographie.
+    """Effectue l'inference sur une image de radiographie thoracique."""
+    charger_modele()
+    image_preprocessee = preprocesser_image(contenu_image)
+    predictions = _modele.predict(image_preprocessee)
 
-    TODO: Remplacer le stub par l'appel reel au modele charge.
-    """
-    _image_preprocessee = await preprocesser_image(contenu_image)
-
-    # Stub : simule une prediction
-    confiance_simulee = 0.85
-    prediction = "positif" if confiance_simulee > 0.5 else "negatif"
+    indice_classe = int(np.argmax(predictions[0]))
+    confiance = float(predictions[0][indice_classe])
+    est_tuberculose = CLASSES[indice_classe] == "Tuberculosis"
 
     return ReponseDiagnostic(
         pathologie="tuberculose",
-        prediction=prediction,
-        confiance=confiance_simulee,
+        prediction="positif" if est_tuberculose else "negatif",
+        confiance=confiance,
         mode_deploiement=config.mode_deploiement,
     )
