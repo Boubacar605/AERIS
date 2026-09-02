@@ -54,3 +54,4 @@ def test_endpoint_diagnostic_accepte_fichier(client):
     assert donnees["pathologie"] == "tuberculose"
     assert donnees["prediction"] in ["positif", "negatif"]
     assert 0.0 <= donnees["confiance"] <= 1.0
+    assert "temps_inference_ms" in donnees

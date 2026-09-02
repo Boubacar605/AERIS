@@ -7,7 +7,8 @@ services:
       - "${SERVICE_TB_PORT:-8001}:8001"
     environment:
       - SERVICE_TB_PORT=8001
-      - SERVICE_TB_CHEMIN_MODELE=/app/modeles_entraines/modele_tuberculose.h5
+      - SERVICE_TB_CHEMIN_MODELE_EDGE=/app/modeles_entraines/modele_tuberculose.h5
+      - SERVICE_TB_CHEMIN_MODELE_CLOUD=/app/modeles_entraines/modele_tuberculose_cloud.h5
       - MODE_DEPLOIEMENT=cloud
     volumes:
       - ./services/service-tuberculose/modeles_entraines:/app/modeles_entraines
@@ -29,7 +30,8 @@ services:
       - "${SERVICE_PN_PORT:-8002}:8002"
     environment:
       - SERVICE_PN_PORT=8002
-      - SERVICE_PN_CHEMIN_MODELE=/app/modeles_entraines/modele_pneumonie.h5
+      - SERVICE_PN_CHEMIN_MODELE_EDGE=/app/modeles_entraines/modele_pneumonie.h5
+      - SERVICE_PN_CHEMIN_MODELE_CLOUD=/app/modeles_entraines/modele_pneumonie_cloud.h5
       - MODE_DEPLOIEMENT=cloud
     volumes:
       - ./services/service-pneumonie/modeles_entraines:/app/modeles_entraines
@@ -52,7 +54,8 @@ services:
       - "8011:8001"
     environment:
       - SERVICE_TB_PORT=8001
-      - SERVICE_TB_CHEMIN_MODELE=/app/modeles_entraines/modele_tuberculose.h5
+      - SERVICE_TB_CHEMIN_MODELE_EDGE=/app/modeles_entraines/modele_tuberculose.h5
+      - SERVICE_TB_CHEMIN_MODELE_CLOUD=/app/modeles_entraines/modele_tuberculose_cloud.h5
       - MODE_DEPLOIEMENT=edge
     volumes:
       - ./services/service-tuberculose/modeles_entraines:/app/modeles_entraines
@@ -79,7 +82,8 @@ services:
       - "8012:8002"
     environment:
       - SERVICE_PN_PORT=8002
-      - SERVICE_PN_CHEMIN_MODELE=/app/modeles_entraines/modele_pneumonie.h5
+      - SERVICE_PN_CHEMIN_MODELE_EDGE=/app/modeles_entraines/modele_pneumonie.h5
+      - SERVICE_PN_CHEMIN_MODELE_CLOUD=/app/modeles_entraines/modele_pneumonie_cloud.h5
       - MODE_DEPLOIEMENT=edge
     volumes:
       - ./services/service-pneumonie/modeles_entraines:/app/modeles_entraines
