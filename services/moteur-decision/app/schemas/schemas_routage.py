@@ -26,6 +26,7 @@ class ResultatDiagnostic(BaseModel):
     pathologie: str = Field(description="Pathologie detectee")
     prediction: str = Field(description="Resultat : 'positif' ou 'negatif'")
     confiance: float = Field(description="Score de confiance", ge=0.0, le=1.0)
+    temps_inference_ms: float = Field(default=0.0, description="Temps d'inference en ms")
 
 
 class ReponseRoutage(BaseModel):
