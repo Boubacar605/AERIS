@@ -5,26 +5,26 @@ const URL_API = import.meta.env.VITE_URL_API || "http://localhost:8003";
 const clientApi = axios.create({
   baseURL: URL_API,
   timeout: 30000,
-  headers: {
-    "Content-Type": "multipart/form-data",
-  },
 });
+
+export interface MetriquesSysteme {
+  cpu_pourcentage: number;
+  ram_pourcentage: number;
+  latence_reseau_ms: number;
+  reseau_disponible: boolean;
+}
+
+export interface DecisionRoutage {
+  destination: "edge" | "cloud";
+  raison: string;
+  metriques: MetriquesSysteme;
+}
 
 export interface ResultatDiagnostic {
   pathologie: string;
   prediction: string;
   confiance: number;
-}
-
-export interface DecisionRoutage {
-  destination: string;
-  raison: string;
-  metriques: {
-    cpu_pourcentage: number;
-    ram_pourcentage: number;
-    latence_reseau_ms: number;
-    reseau_disponible: boolean;
-  };
+  temps_inference_ms: number;
 }
 
 export interface ReponseRoutage {
@@ -40,7 +40,8 @@ export async function soumettreDiagnostic(
   formData.append("fichier", fichier);
   const reponse = await clientApi.post<ReponseRoutage>(
     "/routage/analyser",
-    formData
+    formData,
+    { headers: { "Content-Type": "multipart/form-data" } }
   );
   return reponse.data;
 }

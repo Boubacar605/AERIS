@@ -1,3 +1,61 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@import url("https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap");
+
+@layer base {
+  body {
+    @apply bg-aeris-fond font-corps text-aeris-texte antialiased;
+  }
+
+  h1, h2, h3, h4 {
+    @apply font-titre;
+  }
+}
+
+@layer components {
+  .panneau {
+    @apply bg-aeris-surface rounded-lg border border-aeris-bordure;
+  }
+
+  .panneau-edge {
+    @apply panneau border-l-4 border-l-aeris-edge;
+  }
+
+  .panneau-cloud {
+    @apply panneau border-l-4 border-l-aeris-cloud;
+  }
+
+  .pastille {
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium font-corps;
+  }
+
+  .pastille-edge {
+    @apply pastille bg-aeris-edge-pale text-aeris-edge;
+  }
+
+  .pastille-cloud {
+    @apply pastille bg-aeris-cloud-pale text-aeris-cloud;
+  }
+
+  .pastille-succes {
+    @apply pastille bg-emerald-50 text-aeris-succes;
+  }
+
+  .pastille-alerte {
+    @apply pastille bg-red-50 text-aeris-alerte;
+  }
+
+  .valeur-metrique {
+    @apply font-mono text-3xl font-medium tracking-tight;
+  }
+
+  .unite-metrique {
+    @apply font-corps text-sm text-aeris-texte-secondaire ml-1;
+  }
+
+  .transition-edge-cloud {
+    @apply transition-all duration-700 ease-in-out;
+  }
+}
