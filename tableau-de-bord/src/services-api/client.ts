@@ -33,6 +33,20 @@ export interface ReponseRoutage {
   temps_total_ms: number;
 }
 
+export interface EtatSysteme {
+  edge: {
+    cpu_pourcentage: number;
+    ram_pourcentage: number;
+    ram_utilisee_mb: number;
+    ram_totale_mb: number;
+    mode: string;
+  };
+  cloud: {
+    connectivite: boolean;
+    latence_ms: number;
+  };
+}
+
 export async function soumettreDiagnostic(
   fichier: File
 ): Promise<ReponseRoutage> {
@@ -48,6 +62,11 @@ export async function soumettreDiagnostic(
 
 export async function verifierSante(): Promise<{ statut: string }> {
   const reponse = await clientApi.get("/sante");
+  return reponse.data;
+}
+
+export async function obtenirEtatSysteme(): Promise<EtatSysteme> {
+  const reponse = await clientApi.get<EtatSysteme>("/etat-systeme");
   return reponse.data;
 }
 
