@@ -22,10 +22,7 @@ from app.logique_routage.evaluateur_reseau import (
     mesurer_latence_cloud,
     verifier_connectivite_cloud,
 )
-from app.logique_routage.evaluateur_ressources import (
-    obtenir_utilisation_cpu,
-    obtenir_utilisation_ram,
-)
+from app.logique_routage.evaluateur_ressources import obtenir_metriques_completes
 from app.schemas.schemas_routage import (
     DecisionRoutage,
     MetriquesSysteme,
@@ -76,12 +73,13 @@ async def decider_destination(contenu_image: bytes) -> ReponseRoutage:
     """Decide ou envoyer l'image et execute l'inference en parallele."""
     debut = time.time()
 
-    cpu, ram, reseau_ok = await asyncio.gather(
-        obtenir_utilisation_cpu(),
-        obtenir_utilisation_ram(),
+    metriques_edge, reseau_ok = await asyncio.gather(
+        obtenir_metriques_completes(),
         verifier_connectivite_cloud(),
     )
 
+    cpu = metriques_edge.get("cpu_pourcentage", 99.0)
+    ram = metriques_edge.get("ram_pourcentage", 99.0)
     latence = await mesurer_latence_cloud() if reseau_ok else 9999.0
 
     metriques = MetriquesSysteme(
@@ -99,7 +97,7 @@ async def decider_destination(contenu_image: bytes) -> ReponseRoutage:
         metriques=metriques,
     )
 
-    logger.info("Decision : %s — %s", destination, raison)
+    logger.info("Decision : %s - %s", destination, raison)
 
     url_tb, url_pn = _obtenir_urls(destination)
 
@@ -112,7 +110,7 @@ async def decider_destination(contenu_image: bytes) -> ReponseRoutage:
     temps_total = (time.time() - debut) * 1000
 
     logger.info(
-        "Routage termine [%s] : TB=%s (%.2f), PN=%s (%.2f) — %sms",
+        "Routage termine [%s] : TB=%s (%.2f), PN=%s (%.2f) - %sms",
         destination,
         resultat_tb.prediction,
         resultat_tb.confiance,

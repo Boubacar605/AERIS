@@ -4,6 +4,7 @@ from fastapi import FastAPI
 from prometheus_fastapi_instrumentator import Instrumentator
 
 from app.config import config
+from app.routes.metriques import routeur_metriques
 from app.routes.routage import routeur_routage
 from app.routes.sante import routeur_sante
 
@@ -20,6 +21,7 @@ Instrumentator().instrument(app).expose(app)
 
 app.include_router(routeur_sante)
 app.include_router(routeur_routage, prefix="/routage", tags=["Routage"])
+app.include_router(routeur_metriques, tags=["Metriques"])
 
 
 @app.get("/")

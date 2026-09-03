@@ -1,147 +1,199 @@
-import CarteMetrique from "../composants/CarteMetrique";
-import CarteStatutService from "../composants/CarteStatutService";
-import IndicateurDestination from "../composants/IndicateurDestination";
+import MoteurDecisionHero from "../composants/MoteurDecisionHero";
+import BlocNoeud from "../composants/JaugeNoeud";
+import BandePellicule from "../composants/BandePellicule";
+
+const INFERENCES_RECENTES = [
+  { id: 47, destination: "edge" as const, tb: "neg", pn: "neg", confianceTb: 0.92, confiancePn: 0.87, temps: 187, heure: "14:23" },
+  { id: 46, destination: "cloud" as const, tb: "pos", pn: "neg", confianceTb: 0.78, confiancePn: 0.91, temps: 342, heure: "14:18" },
+  { id: 45, destination: "edge" as const, tb: "neg", pn: "pos", confianceTb: 0.95, confiancePn: 0.83, temps: 201, heure: "13:55" },
+  { id: 44, destination: "edge" as const, tb: "neg", pn: "neg", confianceTb: 0.97, confiancePn: 0.90, temps: 175, heure: "13:40" },
+  { id: 43, destination: "cloud" as const, tb: "neg", pn: "neg", confianceTb: 0.94, confiancePn: 0.88, temps: 410, heure: "13:12" },
+];
+
+const DONNEES_PELLICULE = [
+  ...INFERENCES_RECENTES,
+  { id: 42, destination: "edge" as const, tb: "neg", pn: "neg", confianceTb: 0.91, confiancePn: 0.85, temps: 160 },
+  { id: 41, destination: "edge" as const, tb: "neg", pn: "neg", confianceTb: 0.93, confiancePn: 0.89, temps: 155 },
+  { id: 40, destination: "cloud" as const, tb: "neg", pn: "neg", confianceTb: 0.96, confiancePn: 0.92, temps: 380 },
+  { id: 39, destination: "edge" as const, tb: "neg", pn: "neg", confianceTb: 0.90, confiancePn: 0.86, temps: 170 },
+  { id: 38, destination: "edge" as const, tb: "pos", pn: "neg", confianceTb: 0.81, confiancePn: 0.94, temps: 195 },
+  { id: 37, destination: "edge" as const, tb: "neg", pn: "neg", confianceTb: 0.98, confiancePn: 0.91, temps: 148 },
+  { id: 36, destination: "cloud" as const, tb: "neg", pn: "pos", confianceTb: 0.95, confiancePn: 0.76, temps: 365 },
+  { id: 35, destination: "edge" as const, tb: "neg", pn: "neg", confianceTb: 0.92, confiancePn: 0.88, temps: 162 },
+  { id: 34, destination: "edge" as const, tb: "neg", pn: "neg", confianceTb: 0.94, confiancePn: 0.90, temps: 157 },
+  { id: 33, destination: "cloud" as const, tb: "neg", pn: "neg", confianceTb: 0.93, confiancePn: 0.87, temps: 395 },
+  { id: 32, destination: "edge" as const, tb: "neg", pn: "neg", confianceTb: 0.96, confiancePn: 0.91, temps: 143 },
+  { id: 31, destination: "edge" as const, tb: "neg", pn: "neg", confianceTb: 0.91, confiancePn: 0.85, temps: 168 },
+  { id: 30, destination: "edge" as const, tb: "neg", pn: "neg", confianceTb: 0.95, confiancePn: 0.89, temps: 151 },
+  { id: 29, destination: "cloud" as const, tb: "neg", pn: "neg", confianceTb: 0.92, confiancePn: 0.90, temps: 388 },
+  { id: 28, destination: "edge" as const, tb: "neg", pn: "neg", confianceTb: 0.97, confiancePn: 0.93, temps: 140 },
+];
 
 function PageAccueil() {
   return (
     <div className="space-y-8">
       <header>
-        <h2 className="font-titre text-2xl font-bold text-aeris-texte">
+        <h2 className="font-titre text-3xl font-bold text-aeris-texte">
           Tableau de bord
         </h2>
-        <p className="font-corps text-sm text-aeris-texte-secondaire mt-1">
-          Vue d'ensemble du systeme de triage radiologique
+        <p className="font-corps text-base text-aeris-texte-secondaire mt-1">
+          Systeme de triage radiologique adaptatif
         </p>
       </header>
 
-      <IndicateurDestination
+      <MoteurDecisionHero
+        requeteId={47}
+        horodatage="03/09/2026 14:23:12"
         destination="edge"
-        raison="Conditions normales - traitement local privilegie"
+        raison="Reseau stable (34 ms, sous le seuil de 100 ms) et ressources Edge disponibles (CPU 42%, RAM 58%) — traitement local privilegie."
+        cpu={42}
+        ram={58}
+        latence={34}
+        seuilCpu={80}
+        seuilRam={85}
+        seuilLatence={100}
+        resultatTb={{ prediction: "negatif", confiance: 0.92 }}
+        resultatPn={{ prediction: "negatif", confiance: 0.87 }}
+        tempsTotal={187}
       />
 
-      <section>
-        <h3 className="font-titre text-sm font-semibold text-aeris-texte-secondaire uppercase tracking-wider mb-4">
-          Statut des services
-        </h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <CarteStatutService
-            nom="Service Tuberculose"
-            statut="operationnel"
-            mode="edge"
-          />
-          <CarteStatutService
-            nom="Service Tuberculose"
-            statut="operationnel"
-            mode="cloud"
-          />
-          <CarteStatutService
-            nom="Service Pneumonie"
-            statut="operationnel"
-            mode="edge"
-          />
-          <CarteStatutService
-            nom="Service Pneumonie"
-            statut="operationnel"
-            mode="cloud"
-          />
-        </div>
-      </section>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        <BlocNoeud
+          type="edge"
+          metriques={[
+            { label: "CPU", valeur: 42, unite: "%", seuil: 80 },
+            { label: "RAM", valeur: 58, unite: "%", seuil: 85 },
+          ]}
+          services={[
+            { nom: "TB", statut: "ok" },
+            { nom: "PN", statut: "ok" },
+          ]}
+        />
+        <BlocNoeud
+          type="cloud"
+          metriques={[
+            { label: "Latence", valeur: 34, unite: "ms", seuil: 100 },
+          ]}
+          services={[
+            { nom: "TB", statut: "ok" },
+            { nom: "PN", statut: "ok" },
+          ]}
+        />
+      </div>
 
-      <section>
-        <h3 className="font-titre text-sm font-semibold text-aeris-texte-secondaire uppercase tracking-wider mb-4">
-          Metriques systeme
-        </h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <CarteMetrique
-            label="Utilisation CPU (Edge)"
-            valeur="42"
-            unite="%"
-            variante="edge"
-          />
-          <CarteMetrique
-            label="Utilisation RAM (Edge)"
-            valeur="58"
-            unite="%"
-            variante="edge"
-          />
-          <CarteMetrique
-            label="Latence reseau"
-            valeur="34"
-            unite="ms"
-            variante="cloud"
-          />
-          <CarteMetrique
-            label="Derniere inference"
-            valeur="187"
-            unite="ms"
-            variante="neutre"
-          />
-        </div>
-      </section>
+      <BandePellicule inferences={DONNEES_PELLICULE} />
 
-      <section>
-        <h3 className="font-titre text-sm font-semibold text-aeris-texte-secondaire uppercase tracking-wider mb-4">
-          Dernier diagnostic
-        </h3>
-        <div className="panneau p-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <ResultatPathologie
-              pathologie="Tuberculose"
-              prediction="negatif"
-              confiance={0.92}
-              temps={156}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+        <div className="lg:col-span-2">
+          <h3 className="font-titre text-base font-semibold text-aeris-texte mb-4">
+            Dernieres inferences
+          </h3>
+          <div className="space-y-2">
+            {INFERENCES_RECENTES.map((inf) => {
+              const aPositif = inf.tb === "pos" || inf.pn === "pos";
+              return (
+                <div
+                  key={inf.id}
+                  className={`panneau border-l-[3px] px-4 py-3 flex items-center justify-between ${
+                    aPositif ? "border-l-aeris-alerte" : "border-l-aeris-succes"
+                  }`}
+                >
+                  <div className="flex items-center gap-4">
+                    <span className="font-mono text-sm text-aeris-texte font-medium">
+                      #{inf.id}
+                    </span>
+                    <span className={inf.destination === "edge" ? "pastille-edge" : "pastille-cloud"}>
+                      {inf.destination}
+                    </span>
+                    <span className="font-corps text-sm text-aeris-texte">
+                      TB{" "}
+                      <span className={inf.tb === "pos" ? "text-aeris-alerte font-medium" : "text-aeris-succes"}>
+                        {inf.tb}
+                      </span>
+                      {" "}{(inf.confianceTb * 100).toFixed(0)}%
+                      <span className="text-aeris-bordure mx-2">|</span>
+                      PN{" "}
+                      <span className={inf.pn === "pos" ? "text-aeris-alerte font-medium" : "text-aeris-succes"}>
+                        {inf.pn}
+                      </span>
+                      {" "}{(inf.confiancePn * 100).toFixed(0)}%
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="font-mono text-sm text-aeris-texte-secondaire">
+                      {inf.temps} ms
+                    </span>
+                    <span className="font-corps text-xs text-aeris-texte-secondaire">
+                      {inf.heure}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        <div>
+          <h3 className="font-titre text-base font-semibold text-aeris-texte mb-4">
+            Performance
+          </h3>
+          <div className="space-y-3">
+            <BlocPerformance
+              valeur="187"
+              unite="ms"
+              label="Latence moyenne"
+              contexte="dans la norme"
+              statut="ok"
             />
-            <ResultatPathologie
-              pathologie="Pneumonie"
-              prediction="negatif"
-              confiance={0.87}
-              temps={143}
+            <BlocPerformance
+              valeur="12"
+              unite="req/min"
+              label="Debit"
+              contexte="stable"
+              statut="ok"
+            />
+            <BlocPerformance
+              valeur="99.2"
+              unite="%"
+              label="Disponibilite"
+              contexte="nominal"
+              statut="ok"
             />
           </div>
         </div>
-      </section>
+      </div>
     </div>
   );
 }
 
-function ResultatPathologie({
-  pathologie,
-  prediction,
-  confiance,
-  temps,
+function BlocPerformance({
+  valeur,
+  unite,
+  label,
+  contexte,
+  statut,
 }: {
-  pathologie: string;
-  prediction: string;
-  confiance: number;
-  temps: number;
+  valeur: string;
+  unite: string;
+  label: string;
+  contexte: string;
+  statut: "ok" | "attention" | "critique";
 }) {
-  const estPositif = prediction === "positif";
+  const couleurContexte = {
+    ok: "text-aeris-succes",
+    attention: "text-aeris-edge",
+    critique: "text-aeris-alerte",
+  }[statut];
 
   return (
-    <div className="flex items-start gap-4">
-      <div
-        className={`w-3 h-3 rounded-full mt-1.5 flex-shrink-0 ${
-          estPositif ? "bg-aeris-alerte" : "bg-aeris-succes"
-        }`}
-      />
-      <div className="flex-1">
-        <p className="font-titre text-base font-semibold text-aeris-texte">
-          {pathologie}
-        </p>
-        <div className="flex items-baseline gap-2 mt-1">
-          <span
-            className={estPositif ? "pastille-alerte" : "pastille-succes"}
-          >
-            {prediction}
-          </span>
-          <span className="font-mono text-sm text-aeris-texte-secondaire">
-            {(confiance * 100).toFixed(1)}%
-          </span>
+    <div className="panneau p-4">
+      <p className="font-corps text-xs text-aeris-texte-secondaire">{label}</p>
+      <div className="flex items-baseline justify-between mt-1">
+        <div>
+          <span className="font-mono text-2xl font-medium text-aeris-texte">{valeur}</span>
+          <span className="font-corps text-xs text-aeris-texte-secondaire ml-1">{unite}</span>
         </div>
-        <p className="text-xs text-aeris-texte-secondaire mt-1.5 font-corps">
-          Inference en{" "}
-          <span className="font-mono">{temps}</span> ms
-        </p>
+        <span className={`font-corps text-xs ${couleurContexte}`}>{contexte}</span>
       </div>
     </div>
   );

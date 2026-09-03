@@ -14,8 +14,8 @@ function BarreLaterale() {
         <h1 className="font-titre text-2xl font-bold text-white tracking-wide">
           AERIS
         </h1>
-        <p className="font-corps text-xs text-aeris-accent mt-1 tracking-wider uppercase">
-          Radiologie Intelligente
+        <p className="font-corps text-xs text-aeris-accent mt-1">
+          Radiologie intelligente
         </p>
       </div>
 
