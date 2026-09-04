@@ -1,6 +1,7 @@
 """Point d'entree FastAPI du moteur de decision adaptatif."""
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from prometheus_fastapi_instrumentator import Instrumentator
 
 from app.config import config
@@ -15,6 +16,13 @@ app = FastAPI(
         "vers l'Edge ou le Cloud selon l'etat des ressources et du reseau."
     ),
     version="0.1.0",
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 Instrumentator().instrument(app).expose(app)
