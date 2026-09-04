@@ -39,7 +39,7 @@ def charger_modele() -> None:
     if _modele is not None:
         return
 
-    from tensorflow.keras.models import load_model
+    import tensorflow as tf
 
     chemin = config.chemin_modele
     logger.info(
@@ -47,7 +47,11 @@ def charger_modele() -> None:
         config.mode_deploiement,
         chemin,
     )
-    _modele = load_model(chemin, compile=False)
+    try:
+        _modele = tf.keras.models.load_model(chemin, compile=False)
+    except (TypeError, ValueError) as e:
+        logger.warning("Chargement standard echoue (%s), tentative avec safe_mode=False", e)
+        _modele = tf.keras.models.load_model(chemin, compile=False, safe_mode=False)
     logger.info("Modele pneumonie charge avec succes")
 
 

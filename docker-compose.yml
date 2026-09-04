@@ -76,7 +76,9 @@ services:
       - aeris-reseau
 
   service-pneumonie-edge:
-    build: ./services/service-pneumonie
+    build:
+      context: ./services/service-pneumonie
+      dockerfile: Dockerfile.edge
     container_name: aeris-pn-edge
     ports:
       - "8012:8002"
