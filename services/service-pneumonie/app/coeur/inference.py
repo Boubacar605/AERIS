@@ -47,7 +47,7 @@ def charger_modele() -> None:
         config.mode_deploiement,
         chemin,
     )
-    _modele = load_model(chemin)
+    _modele = load_model(chemin, compile=False)
     logger.info("Modele pneumonie charge avec succes")
 
 

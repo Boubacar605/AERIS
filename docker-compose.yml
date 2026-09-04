@@ -121,9 +121,13 @@ services:
       - SEUIL_LATENCE_MS=${SEUIL_LATENCE_MS:-100}
     depends_on:
       service-tuberculose-cloud:
-        condition: service_healthy
+        condition: service_started
       service-pneumonie-cloud:
-        condition: service_healthy
+        condition: service_started
+      service-tuberculose-edge:
+        condition: service_started
+      service-pneumonie-edge:
+        condition: service_started
       prometheus:
         condition: service_started
     healthcheck:
