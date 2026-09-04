@@ -48,10 +48,14 @@ export interface EtatSysteme {
 }
 
 export async function soumettreDiagnostic(
-  fichier: File
+  fichier: File,
+  forceDestination?: "edge" | "cloud" | null
 ): Promise<ReponseRoutage> {
   const formData = new FormData();
   formData.append("fichier", fichier);
+  if (forceDestination) {
+    formData.append("force_destination", forceDestination);
+  }
   const reponse = await clientApi.post<ReponseRoutage>(
     "/routage/analyser",
     formData,

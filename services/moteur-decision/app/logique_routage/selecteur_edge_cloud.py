@@ -69,8 +69,13 @@ async def _appeler_service(
         )
 
 
-async def decider_destination(contenu_image: bytes) -> ReponseRoutage:
-    """Decide ou envoyer l'image et execute l'inference en parallele."""
+async def decider_destination(
+    contenu_image: bytes, force_destination: str | None = None
+) -> ReponseRoutage:
+    """Decide ou envoyer l'image et execute l'inference en parallele.
+
+    Si force_destination est "edge" ou "cloud", le routage automatique est ignore.
+    """
     debut = time.time()
 
     metriques_edge, reseau_ok = await asyncio.gather(
@@ -89,7 +94,11 @@ async def decider_destination(contenu_image: bytes) -> ReponseRoutage:
         reseau_disponible=reseau_ok,
     )
 
-    destination, raison = _appliquer_regles(metriques)
+    if force_destination in ("edge", "cloud"):
+        destination = force_destination
+        raison = f"Destination forcee manuellement vers {destination}"
+    else:
+        destination, raison = _appliquer_regles(metriques)
 
     decision = DecisionRoutage(
         destination=destination,
