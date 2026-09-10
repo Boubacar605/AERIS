@@ -1,0 +1,14 @@
+{
+  "nom": "Adaptatif",
+  "mode_routage": "auto",
+  "nb_repetitions": 10,
+  "delai_entre_requetes_ms": 500,
+  "description": "Routage dynamique selon metriques — sous charges variables",
+  "profils_charge": [
+    {"profil": "stable", "duree_secondes": 30},
+    {"profil": "reseau_lent", "duree_secondes": 45},
+    {"profil": "stable", "duree_secondes": 30},
+    {"profil": "cpu_sature", "duree_secondes": 45},
+    {"profil": "stable", "duree_secondes": 30}
+  ]
+}

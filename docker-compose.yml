@@ -124,20 +124,27 @@ services:
     depends_on:
       service-tuberculose-cloud:
         condition: service_started
+        required: false
       service-pneumonie-cloud:
         condition: service_started
+        required: false
       service-tuberculose-edge:
         condition: service_started
+        required: false
       service-pneumonie-edge:
         condition: service_started
+        required: false
       prometheus:
         condition: service_started
+        required: false
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8003/sante"]
       interval: 30s
       timeout: 10s
       retries: 3
     profiles:
+      - cloud
+      - edge
       - complet
     networks:
       - aeris-reseau

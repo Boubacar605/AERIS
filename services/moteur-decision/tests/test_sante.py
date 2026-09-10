@@ -1,6 +1,6 @@
 """Tests smoke pour verifier que le moteur de decision demarre correctement."""
 
-from unittest.mock import AsyncMock, patch
+from unittest.mock import patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -26,6 +26,33 @@ def test_endpoint_racine():
     donnees = reponse.json()
     assert donnees["service"] == "moteur-decision"
     assert "seuils" in donnees
+
+
+@patch("app.routes.metriques.verifier_connectivite_cloud")
+@patch("app.routes.metriques.mesurer_latence_cloud")
+@patch("app.routes.metriques.obtenir_metriques_completes")
+def test_etat_systeme_inclut_decision_temps_reel(
+    mock_metriques, mock_latence, mock_connectivite
+):
+    """Verifie que /etat-systeme expose la decision temps reelle du moteur."""
+    mock_metriques.return_value = {"cpu_pourcentage": 40.0, "ram_pourcentage": 50.0}
+    mock_connectivite.return_value = True
+    mock_latence.return_value = 30.0
+
+    reponse = client.get("/etat-systeme")
+    assert reponse.status_code == 200
+    donnees = reponse.json()
+
+    # Decision temps reelle calculee avec les memes regles que le moteur.
+    assert donnees["decision"]["destination"] == "edge"
+    assert donnees["decision"]["raison"]
+    assert donnees["decision"]["metriques"]["reseau_disponible"] is True
+    assert donnees["decision"]["metriques"]["latence_reseau_ms"] == 30.0
+
+    # Repartition reelle des requetes (derive de l'historique du registre).
+    assert set(donnees["statistiques"]["repartition"]) == {"edge", "cloud"}
+    repartition = donnees["statistiques"]["repartition"]
+    assert sum(repartition.values()) == donnees["statistiques"]["total"]
 
 
 @patch("app.logique_routage.selecteur_edge_cloud._appeler_service")

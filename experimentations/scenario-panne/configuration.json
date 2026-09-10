@@ -1,0 +1,17 @@
+{
+  "nom": "Tolerance-pannes",
+  "mode_routage": "auto",
+  "nb_repetitions": 5,
+  "delai_entre_requetes_ms": 1000,
+  "description": "Verification de la bascule automatique Edge → Cloud lors d'une panne Edge",
+  "profils_charge": [
+    {"profil": "stable", "duree_secondes": 30},
+    {"profil": "panne_edge", "duree_secondes": 45},
+    {"profil": "stable", "duree_secondes": 30}
+  ],
+  "verifications": [
+    {"phase": 1, "destination_attendue": "edge"},
+    {"phase": 2, "destination_attendue": "cloud"},
+    {"phase": 3, "destination_attendue": "edge"}
+  ]
+}

@@ -31,10 +31,12 @@ async def obtenir_metriques_systeme() -> dict:
     et decider du routage.
     """
     memoire = psutil.virtual_memory()
+    disque = psutil.disk_usage("/")
     return {
         "cpu_pourcentage": psutil.cpu_percent(interval=0.1),
         "ram_pourcentage": memoire.percent,
         "ram_utilisee_mb": round(memoire.used / (1024 * 1024), 1),
         "ram_totale_mb": round(memoire.total / (1024 * 1024), 1),
+        "disque_pourcentage": disque.percent,
         "mode": config.mode_deploiement,
     }
