@@ -54,7 +54,7 @@ Comment concevoir un systeme distribue capable de decider automatiquement de l'e
 
 | Composant | Technologie |
 |-----------|-------------|
-| Backend / Services IA | Python 3.11+, FastAPI, ONNX Runtime |
+| Backend / Services IA | Python 3.11+, FastAPI, TensorFlow/Keras |
 | Moteur de Decision | Python, FastAPI, regles basees sur seuils |
 | Frontend | React 18, TypeScript, TailwindCSS, Recharts |
 | Conteneurisation | Docker, Docker Compose |

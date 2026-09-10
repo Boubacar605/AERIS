@@ -2,6 +2,10 @@
 
 from fastapi import APIRouter, File, Form, UploadFile
 
+from app.logique_routage.registre_diagnostics import (
+    enregistrer_diagnostic,
+    incrementer_compteur,
+)
 from app.logique_routage.selecteur_edge_cloud import decider_destination
 from app.schemas.schemas_routage import ReponseRoutage
 
@@ -20,4 +24,11 @@ async def router_et_analyser(
     """
     contenu_image = await fichier.read()
     resultat = await decider_destination(contenu_image, force_destination)
+
+    incrementer_compteur()
+    enregistrer_diagnostic(
+        destination=resultat.decision.destination,
+        resultats=[r.model_dump() for r in resultat.resultats],
+        temps_total_ms=resultat.temps_total_ms,
+    )
     return resultat
