@@ -19,6 +19,18 @@ class ConfigMoteurDecision(BaseSettings):
     seuil_ram: int = 85
     seuil_latence_ms: int = 100
 
+    # Filet de securite de confiance (controle qualite post-inference)
+    seuil_confiance_escalade: float = 0.75  # sous ce seuil, une pathologie est jugee ambiguee
+    seuil_confiance_indetermine: float = 0.60  # sous ce seuil, le verdict final est "indetermine"
+
+    # Profilage image : regles de triage vers les specialistes
+    seuil_ratio_carre_inf: float = 0.9  # PNG carre -> profil TB
+    seuil_ratio_carre_sup: float = 1.1
+    seuil_ratio_pn: float = 1.1  # JPEG etire -> profil PN
+    format_image_tb: str = "PNG"
+    format_image_pn: str = "JPEG"
+    profilage_active: bool = True  # kill-switch de securite (False -> comportement actuel)
+
     # Monitoring
     prometheus_url: str = "http://prometheus:9090"
 
