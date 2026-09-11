@@ -35,10 +35,12 @@ export async function uploadImage(
   path: string,
   file: File,
   forceDestination?: string,
+  contexte?: ContexteDepistage,
 ): Promise<ReponseRoutage> {
   const form = new FormData();
   form.append("fichier", file);
   if (forceDestination) form.append("force_destination", forceDestination);
+  if (contexte && contexte !== "auto") form.append("contexte", contexte);
   const res = await fetch(`${BASE_URL}${path}`, {
     method: "POST",
     body: form,
@@ -95,6 +97,27 @@ export type ResultatDiagnostic = {
   prediction: string;
   confiance: number;
   temps_inference_ms: number;
+  /** Source réelle du verdict retenu : "edge" ou "cloud". */
+  source?: "edge" | "cloud";
+  /** Vrai si ce verdict a subi un contrôle qualité (escalade). */
+  escalade?: boolean;
+  /** Confiance avant escalade (trace du contrôle). */
+  confiance_initiale?: number;
+  /** Source avant escalade (trace du contrôle). */
+  source_initiale?: "edge" | "cloud";
+  /** Vrai si le verdict est trop ambigu pour être utilisé (relecture requise). */
+  indetermine?: boolean;
+};
+
+/** Événement tracé d'un contrôle qualité (escalade Edge ↔ Cloud). */
+export type EvenementEscalade = {
+  pathologie: string;
+  source_initiale: "edge" | "cloud";
+  confiance_initiale: number;
+  source_controle: "edge" | "cloud";
+  confiance_controle: number;
+  decision: "arbitrage_a_prevalu" | "arbitrage_conserve_initial" | "escalade_impossible";
+  raison: string;
 };
 
 /** Entrée de l'historique (buffer circulaire du moteur). */
@@ -118,6 +141,31 @@ export type ReponseHistorique = {
   };
 };
 
+/** Profil technique d'une image extrait par le moteur (routage sélectif). */
+export type ProfilImage = {
+  nom_fichier?: string | null;
+  format?: string | null;
+  largeur_px?: number | null;
+  hauteur_px?: number | null;
+  ratio_largeur_hauteur?: number | null;
+  mode_canaux?: string | null;
+  taille_octets?: number;
+  indecodable?: boolean;
+};
+
+/** Décision de triage des spécialistes après profilage de l'image. */
+export type FiltrageSpecialistes = {
+  profil: ProfilImage;
+  specialistes_admissibles: string[];
+  regle_appliquee: string;
+  cle_regle?: string;
+  specialiste_ecarte?: string | null;
+  raison: string;
+};
+
+/** Contexte de dépistage saisi par le soignant ("auto" = profilage seul). */
+export type ContexteDepistage = "auto" | "tuberculose" | "pneumonie" | "general";
+
 /** Réponse complète de POST /routage/analyser. */
 export type ReponseRoutage = {
   decision: {
@@ -131,7 +179,10 @@ export type ReponseRoutage = {
     };
   };
   resultats: ResultatDiagnostic[];
+  escalades: EvenementEscalade[];
   temps_total_ms: number;
+  temps_escalade_ms: number | null;
+  filtrage?: FiltrageSpecialistes;
 };
 
 /** Seuils de décision exposés par GET /. */
@@ -139,6 +190,16 @@ export type SeuilsMoteur = {
   cpu: number;
   ram: number;
   latence_ms: number;
+  confiance_escalade?: number;
+  confiance_indetermine?: number;
+  profilage_active?: boolean;
+  profilage?: {
+    seuil_ratio_carre_inf?: number;
+    seuil_ratio_carre_sup?: number;
+    seuil_ratio_pn?: number;
+    format_image_tb?: string;
+    format_image_pn?: string;
+  };
 };
 
 export async function obtenirSeuils(): Promise<SeuilsMoteur> {
