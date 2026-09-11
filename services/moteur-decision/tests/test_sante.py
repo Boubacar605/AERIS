@@ -90,3 +90,104 @@ def test_endpoint_routage_accepte_fichier(
     assert donnees["decision"]["destination"] in ["edge", "cloud"]
     assert len(donnees["resultats"]) == 2
     assert donnees["temps_total_ms"] >= 0
+
+
+def _png_reel_carre() -> bytes:
+    """PNG RVB carre valide (profil typique du depistage tuberculose)."""
+    import io
+
+    from PIL import Image
+
+    buffer = io.BytesIO()
+    Image.new("RGB", (300, 300), (120, 120, 120)).save(buffer, format="PNG")
+    return buffer.getvalue()
+
+
+@patch("app.logique_routage.selecteur_edge_cloud._appeler_service")
+@patch("app.logique_routage.evaluateur_reseau.verifier_connectivite_cloud")
+@patch("app.logique_routage.evaluateur_reseau.mesurer_latence_cloud")
+@patch("app.logique_routage.evaluateur_ressources.obtenir_utilisation_ram")
+@patch("app.logique_routage.evaluateur_ressources.obtenir_utilisation_cpu")
+def test_endpoint_profil_tb_ne_retourne_qu_un_resultat(
+    mock_cpu, mock_ram, mock_latence, mock_connectivite, mock_appel
+):
+    """PNG reel : 1 seul resultat (tuberculose), profil expose dans la reponse."""
+    mock_cpu.return_value = 40.0
+    mock_ram.return_value = 50.0
+    mock_connectivite.return_value = True
+    mock_latence.return_value = 30.0
+
+    from app.schemas.schemas_routage import ResultatDiagnostic
+
+    mock_appel.side_effect = [
+        ResultatDiagnostic(pathologie="tuberculose", prediction="negatif", confiance=0.92)
+    ]
+
+    reponse = client.post(
+        "/routage/analyser",
+        files={"fichier": ("cliche-tb.png", _png_reel_carre(), "image/png")},
+    )
+    assert reponse.status_code == 200
+    donnees = reponse.json()
+    assert len(donnees["resultats"]) == 1
+    assert donnees["resultats"][0]["pathologie"] == "tuberculose"
+    assert "filtrage" in donnees
+    assert donnees["filtrage"]["profil"]["format"] == "PNG"
+    assert donnees["filtrage"]["specialistes_admissibles"] == ["tuberculose"]
+    assert donnees["filtrage"]["specialiste_ecarte"] == "pneumonie"
+    assert donnees["filtrage"]["cle_regle"] == "profil_tb"
+
+
+@patch("app.logique_routage.selecteur_edge_cloud._appeler_service")
+@patch("app.logique_routage.evaluateur_reseau.verifier_connectivite_cloud")
+@patch("app.logique_routage.evaluateur_reseau.mesurer_latence_cloud")
+@patch("app.logique_routage.evaluateur_ressources.obtenir_utilisation_ram")
+@patch("app.logique_routage.evaluateur_ressources.obtenir_utilisation_cpu")
+def test_endpoint_contexte_pneumonie_surclasse_le_profil(
+    mock_cpu, mock_ram, mock_latence, mock_connectivite, mock_appel
+):
+    """Contexte pneumonie via Form sur un PNG carre : seul PN est sollicite."""
+    mock_cpu.return_value = 40.0
+    mock_ram.return_value = 50.0
+    mock_connectivite.return_value = True
+    mock_latence.return_value = 30.0
+
+    from app.schemas.schemas_routage import ResultatDiagnostic
+
+    mock_appel.side_effect = [
+        ResultatDiagnostic(pathologie="pneumonie", prediction="negatif", confiance=0.87)
+    ]
+
+    reponse = client.post(
+        "/routage/analyser",
+        files={"fichier": ("cliche-tb.png", _png_reel_carre(), "image/png")},
+        data={"contexte": "pneumonie"},
+    )
+    assert reponse.status_code == 200
+    donnees = reponse.json()
+    assert len(donnees["resultats"]) == 1
+    assert donnees["resultats"][0]["pathologie"] == "pneumonie"
+    assert donnees["filtrage"]["cle_regle"] == "contexte_pneumonie"
+
+
+def test_endpoint_contexte_invalide_refuse():
+    """Un contexte hors de la liste admise -> 422 (validation avant inference)."""
+    reponse = client.post(
+        "/routage/analyser",
+        files={"fichier": ("cliche.png", _png_reel_carre(), "image/png")},
+        data={"contexte": "cardiopathie"},
+    )
+    assert reponse.status_code == 422
+
+
+def test_endpoint_racine_expose_profilage():
+    """GET / expose le kill-switch et les seuils de profilage."""
+    reponse = client.get("/")
+    assert reponse.status_code == 200
+    donnees = reponse.json()
+    seuils = donnees["seuils"]
+    assert "profilage_active" in seuils
+    assert seuils["profilage_active"] is True
+    assert "profilage" in seuils
+    assert seuils["profilage"]["format_image_tb"] == "PNG"
+    assert seuils["profilage"]["format_image_pn"] == "JPEG"

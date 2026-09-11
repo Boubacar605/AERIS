@@ -42,6 +42,16 @@ async def racine() -> dict:
             "cpu": config.seuil_cpu,
             "ram": config.seuil_ram,
             "latence_ms": config.seuil_latence_ms,
+            "confiance_escalade": config.seuil_confiance_escalade,
+            "confiance_indetermine": config.seuil_confiance_indetermine,
+            "profilage_active": config.profilage_active,
+            "profilage": {
+                "seuil_ratio_carre_inf": config.seuil_ratio_carre_inf,
+                "seuil_ratio_carre_sup": config.seuil_ratio_carre_sup,
+                "seuil_ratio_pn": config.seuil_ratio_pn,
+                "format_image_tb": config.format_image_tb,
+                "format_image_pn": config.format_image_pn,
+            },
         },
         "statut": "operationnel",
     }

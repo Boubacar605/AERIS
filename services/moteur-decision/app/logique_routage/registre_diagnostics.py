@@ -40,10 +40,13 @@ def enregistrer_diagnostic(
     destination: str,
     resultats: list[dict[str, Any]],
     temps_total_ms: float,
+    escalades: list[dict[str, Any]] | None = None,
+    filtrage: dict[str, Any] | None = None,
 ) -> int:
     """Ajoute un diagnostic realise au buffer circulaire.
 
-    Retourne l'identifiant attribue au diagnostic.
+    Retourne l'identifiant attribue au diagnostic. Le profilage image et le
+    triage des specialistes (``filtrage``) sont preserves quand disponibles.
     """
     global _prochain_identifiant
     identifiant = _prochain_identifiant
@@ -55,17 +58,22 @@ def enregistrer_diagnostic(
             "horodatage": datetime.now().isoformat(timespec="seconds"),
             "destination": destination,
             "resultats": resultats,
+            "escalades": escalades or [],
+            "filtrage": filtrage,
             "temps_total_ms": round(temps_total_ms, 1),
             "statut": "completed",
         }
     )
 
-    # Accumulation des temps d'inference par destination pour les moyennes.
+    # Accumulation des temps d'inference par SOURCE reelle pour les moyennes.
+    # Apres escalade, les sources peuvent etre mixtes (TB depuis cloud, PN
+    # depuis edge) : on ne fausse pas les moyennes en utilisant destination.
     for resultat in resultats:
         temps = resultat.get("temps_inference_ms", 0.0)
-        if destination == "edge":
+        source = resultat.get("source", destination)
+        if source == "edge":
             _temps_inference_edge.append(temps)
-        elif destination == "cloud":
+        elif source == "cloud":
             _temps_inference_cloud.append(temps)
 
     return identifiant
