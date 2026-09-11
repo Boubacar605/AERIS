@@ -121,6 +121,7 @@ services:
       - SEUIL_CPU=${SEUIL_CPU:-80}
       - SEUIL_RAM=${SEUIL_RAM:-85}
       - SEUIL_LATENCE_MS=${SEUIL_LATENCE_MS:-100}
+      - PROFILAGE_ACTIVE=${PROFILAGE_ACTIVE:-true}
     depends_on:
       service-tuberculose-cloud:
         condition: service_started
@@ -166,12 +167,16 @@ services:
 
   # ===== TABLEAU DE BORD =====
   tableau-de-bord:
-    build: ./tableau-de-bord
+    build:
+      context: ./tableau-de-bord
+      args:
+        # URL du moteur de décision accessible depuis le navigateur distant.
+        # Peut être surchargée via VITE_URL_API_PUBLIQUE (ex. : un tunnel
+        # Cloudflare) : VITE_URL_API_PUBLIQUE=https://xxx.trycloudflare.com
+        VITE_URL_API: ${VITE_URL_API_PUBLIQUE:-http://localhost:${MOTEUR_DECISION_PORT:-8003}}
     container_name: aeris-tableau-de-bord
     ports:
       - "${TABLEAU_DE_BORD_PORT:-3000}:3000"
-    environment:
-      - VITE_URL_API=http://localhost:${MOTEUR_DECISION_PORT:-8003}
     profiles:
       - complet
     networks:
