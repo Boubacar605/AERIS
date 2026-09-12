@@ -3,6 +3,7 @@ services:
   service-tuberculose-cloud:
     build: ./services/service-tuberculose
     container_name: aeris-tb-cloud
+    restart: unless-stopped
     ports:
       - "${SERVICE_TB_PORT:-8001}:8001"
     environment:
@@ -26,6 +27,7 @@ services:
   service-pneumonie-cloud:
     build: ./services/service-pneumonie
     container_name: aeris-pn-cloud
+    restart: unless-stopped
     ports:
       - "${SERVICE_PN_PORT:-8002}:8002"
     environment:
@@ -50,6 +52,7 @@ services:
   service-tuberculose-edge:
     build: ./services/service-tuberculose
     container_name: aeris-tb-edge
+    restart: unless-stopped
     ports:
       - "8011:8001"
     environment:
@@ -80,6 +83,7 @@ services:
       context: ./services/service-pneumonie
       dockerfile: Dockerfile.edge
     container_name: aeris-pn-edge
+    restart: unless-stopped
     ports:
       - "8012:8002"
     environment:
@@ -109,10 +113,12 @@ services:
   moteur-decision:
     build: ./services/moteur-decision
     container_name: aeris-moteur-decision
+    restart: unless-stopped
     ports:
       - "${MOTEUR_DECISION_PORT:-8003}:8003"
     environment:
       - MOTEUR_DECISION_PORT=8003
+      - DATABASE_URL=postgresql+psycopg://aeris:${POSTGRES_PASSWORD:-aeris_demo}@postgres:5432/aeris
       - URL_SERVICE_TB_EDGE=http://service-tuberculose-edge:8001
       - URL_SERVICE_TB_CLOUD=http://service-tuberculose-cloud:8001
       - URL_SERVICE_PN_EDGE=http://service-pneumonie-edge:8002
@@ -138,6 +144,9 @@ services:
       prometheus:
         condition: service_started
         required: false
+      postgres:
+        condition: service_healthy
+        required: false
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8003/sante"]
       interval: 30s
@@ -154,6 +163,7 @@ services:
   prometheus:
     image: prom/prometheus:v2.48.0
     container_name: aeris-prometheus
+    restart: unless-stopped
     ports:
       - "${PROMETHEUS_PORT:-9090}:9090"
     volumes:
@@ -161,6 +171,32 @@ services:
       - prometheus-donnees:/prometheus
     profiles:
       - monitoring
+      - complet
+    networks:
+      - aeris-reseau
+
+  # ===== PERSISTANCE (PostgreSQL) =====
+  postgres:
+    image: postgres:16-alpine
+    container_name: aeris-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: aeris
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-aeris_demo}
+      POSTGRES_DB: aeris
+    volumes:
+      - aeris-postgres-donnees:/var/lib/postgresql/data
+      # Scripts d'init exécutés UNIQUEMENT au premier boot du volume :
+      # 01-types, 02-schema, 03-triggers, 04-vues, 05-seed.
+      - ./infrastructure/postgres/init:/docker-entrypoint-initdb.d:ro
+    ports:
+      - "${POSTGRES_PORT:-5433}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aeris -d aeris"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    profiles:
       - complet
     networks:
       - aeris-reseau
@@ -173,8 +209,10 @@ services:
         # URL du moteur de décision accessible depuis le navigateur distant.
         # Peut être surchargée via VITE_URL_API_PUBLIQUE (ex. : un tunnel
         # Cloudflare) : VITE_URL_API_PUBLIQUE=https://xxx.trycloudflare.com
-        VITE_URL_API: ${VITE_URL_API_PUBLIQUE:-http://localhost:${MOTEUR_DECISION_PORT:-8003}}
+        # (nom VITE_URL_API_BUILD pour éviter le no-op ENV/ARG de BuildKit)
+        VITE_URL_API_BUILD: ${VITE_URL_API_PUBLIQUE:-http://localhost:${MOTEUR_DECISION_PORT:-8003}}
     container_name: aeris-tableau-de-bord
+    restart: unless-stopped
     ports:
       - "${TABLEAU_DE_BORD_PORT:-3000}:3000"
     profiles:
@@ -184,6 +222,7 @@ services:
 
 volumes:
   prometheus-donnees:
+  aeris-postgres-donnees:
 
 networks:
   aeris-reseau:

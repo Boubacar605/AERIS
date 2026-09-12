@@ -15,8 +15,10 @@ RUN npm ci
 FROM dependances AS assemblage
 # URL de l'API (moteur de décision) vue par le navigateur. Passée par
 # docker-compose (build arg) : Vite l'inline dans le bundle au build time.
-ARG VITE_URL_API=http://localhost:8003
-ENV VITE_URL_API=$VITE_URL_API
+# NB : nom ARG différent du nom ENV, sinon BuildKit traite ENV X=$X en
+# "no-op" et le cache build est réutilisé malgré un nouvel ARG.
+ARG VITE_URL_API_BUILD=http://localhost:8003
+ENV VITE_URL_API=$VITE_URL_API_BUILD
 COPY . .
 ENV NITRO_PRESET=node-server
 # Machine de démonstration limitée (~1,5 Go disponibles) : on borne le heap
