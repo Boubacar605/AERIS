@@ -18,6 +18,7 @@ from app.logique_routage.evaluateur_reseau import (
     verifier_connectivite_cloud,
 )
 from app.logique_routage.evaluateur_ressources import obtenir_metriques_completes
+from app import persistance
 from app.logique_routage.registre_diagnostics import (
     CAPACITE_HISTORIQUE,
     metriques_temps_reel,
@@ -52,6 +53,21 @@ async def obtenir_etat_systeme() -> dict:
         reseau_disponible=connectivite,
     )
     destination, raison = _appliquer_regles(metriques)
+
+    # Persistance des observations (non bloquant) : les valeurs sondées à
+    # chaque cycle alimentent l'historique SQL de telemetrie_observations.
+    persistance.enregistrer_observations_telemetrie(
+        [
+            {"departement": "edge", "conteneur": "aeris-edge", "nom_mesure": "cpu_pourcentage",
+             "valeur": metriques_edge.get("cpu_pourcentage", 0.0), "unite": "%"},
+            {"departement": "edge", "conteneur": "aeris-edge", "nom_mesure": "ram_pourcentage",
+             "valeur": metriques_edge.get("ram_pourcentage", 0.0), "unite": "%"},
+            {"departement": "edge", "conteneur": "aeris-edge", "nom_mesure": "disque_pourcentage",
+             "valeur": metriques_edge.get("disque_pourcentage", 0.0), "unite": "%"},
+            {"departement": "cloud", "conteneur": "aeris-cloud", "nom_mesure": "latence_reseau_ms",
+             "valeur": latence, "unite": "ms"},
+        ]
+    )
 
     return {
         "edge": metriques_edge,

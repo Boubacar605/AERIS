@@ -1,7 +1,10 @@
 """Endpoint principal de routage des radiographies vers Edge ou Cloud."""
 
+import hashlib
+
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 
+from app import persistance
 from app.logique_routage.registre_diagnostics import (
     enregistrer_diagnostic,
     incrementer_compteur,
@@ -48,5 +51,25 @@ async def router_et_analyser(
         temps_total_ms=resultat.temps_total_ms,
         escalades=[e.model_dump() for e in resultat.escalades],
         filtrage=resultat.filtrage.model_dump() if resultat.filtrage else None,
+    )
+
+    # Persistance durable : jamais bloquante ; soit la file est consommée par
+    # le worker, soit l'écriture est simplement ignorée (persistance inactive).
+    _ = persistance.soumettre_diagnostic(
+        {
+            "nom_fichier": fichier.filename,
+            "hash_contenu": hashlib.sha256(contenu_image).hexdigest(),
+            "taille_octets": len(contenu_image),
+            "contexte": contexte or "auto",
+            "destination": resultat.decision.destination,
+            "raison": resultat.decision.raison,
+            "metriques": resultat.decision.metriques.model_dump(),
+            "temps_total_ms": resultat.temps_total_ms,
+            "temps_escalade_ms": resultat.temps_escalade_ms,
+            "statut": "completed",
+            "resultats": [r.model_dump() for r in resultat.resultats],
+            "escalades": [e.model_dump() for e in resultat.escalades],
+            "filtrage": resultat.filtrage.model_dump() if resultat.filtrage else None,
+        }
     )
     return resultat

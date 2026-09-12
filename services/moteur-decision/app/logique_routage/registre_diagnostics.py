@@ -84,6 +84,30 @@ def obtenir_derniers_diagnostics(limite: int = CAPACITE_HISTORIQUE) -> list[dict
     return list(_historique)[:limite]
 
 
+def reinitialiser_etat(
+    *,
+    historique: list[dict[str, Any]],
+    compteur: int,
+    temps_edge: list[float],
+    temps_cloud: list[float],
+) -> None:
+    """Restaure l'etat du registre depuis la base persistanee.
+
+    Appelee au demarrage du moteur (rehydratation) : l'historique, le
+    compteur de requetes et les temps d'inference par source retrouvent les
+    valeurs d'avant le redemarrage. La rehydratation n'est pas un repli :
+    elle part de donnees reelles persistees dans PostgreSQL.
+    """
+    global _historique, _compteur_requetes, _prochain_identifiant
+    global _temps_inference_edge, _temps_inference_cloud
+
+    _historique = deque(historique, maxlen=CAPACITE_HISTORIQUE)
+    _compteur_requetes = compteur
+    _prochain_identifiant = max((e.get("id", 0) for e in historique), default=0) + 1
+    _temps_inference_edge = list(temps_edge)
+    _temps_inference_cloud = list(temps_cloud)
+
+
 def statistiques() -> dict[str, Any]:
     """Calcule les statistiques globales depuis l'historique."""
     total = len(_historique)

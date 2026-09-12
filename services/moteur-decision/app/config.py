@@ -34,6 +34,13 @@ class ConfigMoteurDecision(BaseSettings):
     # Monitoring
     prometheus_url: str = "http://prometheus:9090"
 
+    # Persistance PostgreSQL. Vide = persistance désactivée (le registre en
+    # mémoire reste seul maître) : permet de tourner en dev/tests sans base.
+    # Ex. postgresql+psycopg://aeris:motdepasse@postgres:5432/aeris
+    database_url: str = ""
+    # Flush par lot du worker de persistance (secondes)
+    persistance_interval_seconde: float = 2.0
+
     class Config:
         env_file = ".env"
         extra = "ignore"
