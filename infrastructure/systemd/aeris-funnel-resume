@@ -1,0 +1,18 @@
+#!/bin/bash
+# AERIS — Hook systemd-system-sleep : réapplique la config Funnel à la
+# sortie de veille/veille prolongée. Installé dans /etc/systemd/system-sleep/.
+#
+# systemd-system-sleep appelle chaque exécutable de ce dossier avec :
+#   <nom> pre|post <type_sommeil>
+# "post" = la machine vient de se réveiller -> on rejoue le tunnel
+# (idempotent) ; le script de maintien attend lui-même que Docker et
+# tailscaled répondent.
+#
+# Le résultat est loggé sur /tmp/aeris-funnel-resume.log (ne bloque
+# pas la reprise).
+
+if [ "$1" = "post" ]; then
+    /usr/local/sbin/aeris-assurer-tunnel >/tmp/aeris-funnel-resume.log 2>&1 || true
+fi
+
+exit 0

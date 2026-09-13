@@ -166,6 +166,27 @@ export type FiltrageSpecialistes = {
 /** Contexte de dépistage saisi par le soignant ("auto" = profilage seul). */
 export type ContexteDepistage = "auto" | "tuberculose" | "pneumonie" | "general";
 
+/**
+ * Forme « prête à afficher » du résultat d'analyse, produite par la page
+ * Diagnostic à partir de ReponseRoutage (décision aplatie, champs fiabilisés).
+ */
+export type ResultatAnalyse = {
+  destination: "edge" | "cloud";
+  raison: string;
+  metriques: {
+    cpu_pourcentage: number;
+    ram_pourcentage: number;
+    latence_reseau_ms: number;
+    reseau_disponible: boolean;
+  };
+  resultats: ResultatDiagnostic[];
+  escalades: EvenementEscalade[];
+  temps_total_ms: number;
+  temps_escalade_ms: number | null;
+  /** Profilage de l'image et triage des spécialistes, si fourni par le moteur. */
+  filtrage?: FiltrageSpecialistes;
+};
+
 /** Réponse complète de POST /routage/analyser. */
 export type ReponseRoutage = {
   decision: {

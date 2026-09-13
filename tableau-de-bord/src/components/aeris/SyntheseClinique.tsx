@@ -28,10 +28,10 @@ type Verdict = {
   pnContrib: ResultatDiagnostic;
 };
 
-const SEUIL_INDETERMINE = 0.6;
-const SEUIL_NORMAL_CONFIANT = 0.75;
+export const SEUIL_INDETERMINE = 0.6;
+export const SEUIL_NORMAL_CONFIANT = 0.75;
 
-function croiserResultats(tb: ResultatDiagnostic, pn: ResultatDiagnostic): Verdict {
+export function croiserResultats(tb: ResultatDiagnostic, pn: ResultatDiagnostic): Verdict {
   const tbPos = tb.prediction === "positif";
   const pnPos = pn.prediction === "positif";
 

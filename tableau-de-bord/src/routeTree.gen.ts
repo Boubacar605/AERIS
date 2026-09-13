@@ -15,6 +15,7 @@ import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as DiagnosticRouteImport } from './routes/diagnostic'
 import { Route as HistoriqueRouteImport } from './routes/historique'
 import { Route as MonitoringRouteImport } from './routes/monitoring'
+import { Route as ResultatRouteImport } from './routes/resultat'
 import { Route as SettingsRouteImport } from './routes/settings'
 
 const IndexRoute = IndexRouteImport.update({
@@ -47,6 +48,11 @@ const MonitoringRoute = MonitoringRouteImport.update({
   path: '/monitoring',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ResultatRoute = ResultatRouteImport.update({
+  id: '/resultat',
+  path: '/resultat',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
@@ -60,6 +66,7 @@ export interface FileRoutesByFullPath {
   '/diagnostic': typeof DiagnosticRoute
   '/historique': typeof HistoriqueRoute
   '/monitoring': typeof MonitoringRoute
+  '/resultat': typeof ResultatRoute
   '/settings': typeof SettingsRoute
 }
 export interface FileRoutesByTo {
@@ -69,6 +76,7 @@ export interface FileRoutesByTo {
   '/diagnostic': typeof DiagnosticRoute
   '/historique': typeof HistoriqueRoute
   '/monitoring': typeof MonitoringRoute
+  '/resultat': typeof ResultatRoute
   '/settings': typeof SettingsRoute
 }
 export interface FileRoutesById {
@@ -79,6 +87,7 @@ export interface FileRoutesById {
   '/diagnostic': typeof DiagnosticRoute
   '/historique': typeof HistoriqueRoute
   '/monitoring': typeof MonitoringRoute
+  '/resultat': typeof ResultatRoute
   '/settings': typeof SettingsRoute
 }
 export interface FileRouteTypes {
@@ -90,6 +99,7 @@ export interface FileRouteTypes {
     | '/diagnostic'
     | '/historique'
     | '/monitoring'
+    | '/resultat'
     | '/settings'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -99,6 +109,7 @@ export interface FileRouteTypes {
     | '/diagnostic'
     | '/historique'
     | '/monitoring'
+    | '/resultat'
     | '/settings'
   id:
     | '__root__'
@@ -108,6 +119,7 @@ export interface FileRouteTypes {
     | '/diagnostic'
     | '/historique'
     | '/monitoring'
+    | '/resultat'
     | '/settings'
   fileRoutesById: FileRoutesById
 }
@@ -118,6 +130,7 @@ export interface RootRouteChildren {
   DiagnosticRoute: typeof DiagnosticRoute
   HistoriqueRoute: typeof HistoriqueRoute
   MonitoringRoute: typeof MonitoringRoute
+  ResultatRoute: typeof ResultatRoute
   SettingsRoute: typeof SettingsRoute
 }
 
@@ -165,6 +178,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MonitoringRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/resultat': {
+      id: '/resultat'
+      path: '/resultat'
+      fullPath: '/resultat'
+      preLoaderRoute: typeof ResultatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/settings': {
       id: '/settings'
       path: '/settings'
@@ -182,6 +202,7 @@ const rootRouteChildren: RootRouteChildren = {
   DiagnosticRoute: DiagnosticRoute,
   HistoriqueRoute: HistoriqueRoute,
   MonitoringRoute: MonitoringRoute,
+  ResultatRoute: ResultatRoute,
   SettingsRoute: SettingsRoute,
 }
 export const routeTree = rootRouteImport
