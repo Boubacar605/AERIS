@@ -1,0 +1,25 @@
+# AERIS — Maintien du tunnel Tailscale Funnel au démarrage.
+# Rejoue la configuration Funnel (idempotente) une fois que tailscaled
+# et les conteneurs Docker sont prêts, puis surveille les chutes.
+#
+# Type=oneshot + Restart=on-failure : autorisé (contrairement à
+# Restart=always, refusé par systemd pour les oneshot). En cas de succès
+# le service reste "actif" (RemainAfterExit) sans rejouer ; si la
+# vérification échoue, il est relancé toutes les 30 s jusqu'à succès.
+
+[Unit]
+Description=AERIS - entretien du tunnel Tailscale Funnel
+Wants=network-online.target tailscaled.service docker.service
+After=network-online.target tailscaled.service docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/sbin/aeris-assurer-tunnel
+Restart=on-failure
+RestartSec=30
+# Pire cas : la machine sort de veille, Docker relance lentement.
+TimeoutStartSec=240
+
+[Install]
+WantedBy=multi-user.target

@@ -2,6 +2,7 @@ import { Link, useRouterState } from "@tanstack/react-router";
 import {
   Activity,
   Cpu,
+  FileText,
   LayoutGrid,
   Network,
   RefreshCw,
@@ -110,6 +111,7 @@ const NAV = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutGrid },
   { to: "/", label: "Présentation", icon: Home },
   { to: "/diagnostic", label: "Diagnostic", icon: ScanLine },
+  { to: "/resultat", label: "Résultat", icon: FileText },
   { to: "/historique", label: "Historique", icon: History },
   { to: "/monitoring", label: "Monitoring", icon: Activity },
   { to: "/architecture", label: "Architecture", icon: Network },

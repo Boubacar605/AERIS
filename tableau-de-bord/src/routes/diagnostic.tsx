@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Activity,
@@ -23,8 +23,10 @@ import {
   type EvenementEscalade,
   type FiltrageSpecialistes,
   type ReponseRoutage,
+  type ResultatAnalyse,
   type ResultatDiagnostic,
 } from "@/lib/api";
+import { definirResultat } from "@/lib/resultat-store";
 import { cn } from "@/lib/utils";
 import { Pie, PieChart, ResponsiveContainer } from "recharts";
 
@@ -73,26 +75,8 @@ const MODES_CONTEXTE = [
 
 type ModeRoutage = (typeof MODES_ROUTAGE)[number]["key"];
 type ContexteMode = (typeof MODES_CONTEXTE)[number]["key"];
-type Destination = "edge" | "cloud";
 
 type Reason = { label: string; value: string; state: "ok" | "warn" | "alert" };
-
-type ResultatAnalyse = {
-  destination: Destination;
-  raison: string;
-  metriques: {
-    cpu_pourcentage: number;
-    ram_pourcentage: number;
-    latence_reseau_ms: number;
-    reseau_disponible: boolean;
-  };
-  resultats: ResultatDiagnostic[];
-  escalades: EvenementEscalade[];
-  temps_total_ms: number;
-  temps_escalade_ms: number | null;
-  /** Profilage de l'image et triage des spécialistes, si fourni par le moteur. */
-  filtrage?: FiltrageSpecialistes;
-};
 
 /** Libellé affiché pour une pathologie, aligné sur les modèles du backend. */
 const LIBELLE_PATHOLOGIE: Record<string, string> = {
@@ -131,7 +115,7 @@ function raisonsDepuis(resultat: ResultatAnalyse): Reason[] {
 }
 
 /** Libellé humain d'une raison de routage. */
-function libelleRaisonDestination(destination: Destination): string {
+function libelleRaisonDestination(destination: "edge" | "cloud"): string {
   return destination === "edge"
     ? "Environnement Edge retenu pour l'inférence primaire."
     : "Environnement Cloud retenu pour l'inférence primaire.";
@@ -421,6 +405,19 @@ function DiagnosticContent() {
     setStep(-1);
     setResultat(null);
     setErreurLive(false);
+  };
+
+  const navigate = useNavigate();
+
+  /** Dépose l'examen dans le store partagé puis ouvre le compte rendu clinique. */
+  const allerAuRapport = () => {
+    if (!fichier || !resultat) return;
+    definirResultat({
+      fichier,
+      resultat,
+      horodatage: new Date().toISOString(),
+    });
+    navigate({ to: "/resultat" });
   };
 
   const moteurIndisponible = !connecte;
@@ -1119,6 +1116,17 @@ function DiagnosticContent() {
                 ))}
               </ul>
             </Panel>
+
+            <div className="flex justify-end pt-1">
+              <button
+                type="button"
+                onClick={allerAuRapport}
+                className="flex items-center gap-2 rounded-md bg-navy px-4 py-2.5 font-mono text-[11px] font-bold tracking-[0.14em] text-white uppercase shadow-raise transition-opacity hover:opacity-90"
+              >
+                Voir le rapport complet
+                <ArrowUpRight className="size-3.5" />
+              </button>
+            </div>
           </>
         ) : (
           <Panel title="Clinical results" subtitle="En attente d'exécution">
