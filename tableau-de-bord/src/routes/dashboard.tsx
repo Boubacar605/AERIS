@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { exigerRole } from "@/lib/authentification";
 import { Activity, CheckCircle2, Cloud, Cpu, Gauge, Wifi, XCircle } from "lucide-react";
 import { AppShell, PageHeader } from "@/components/aeris/AppShell";
 import { DecisionEngine } from "@/components/aeris/DecisionEngine";
@@ -16,6 +17,7 @@ import { useSeries } from "@/lib/aeris";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/dashboard")({
+  beforeLoad: () => exigerRole("admin"),
   component: Dashboard,
   head: () => ({
     meta: [

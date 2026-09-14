@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { exigerRole } from "@/lib/authentification";
 import {
   ArrowDown,
   Boxes,
@@ -16,6 +17,7 @@ import { Panel, StatusDot, Tag } from "@/components/aeris/primitives";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/architecture")({
+  beforeLoad: () => exigerRole("admin"),
   component: ArchitecturePage,
   head: () => ({
     meta: [

@@ -2,15 +2,10 @@
 
 from unittest.mock import patch
 
-import pytest
 from fastapi.testclient import TestClient
 
-from app.principal import app
 
-client = TestClient(app)
-
-
-def test_endpoint_sante_repond_ok():
+def test_endpoint_sante_repond_ok(client: TestClient):
     """Verifie que /sante retourne un statut 200 avec statut ok."""
     reponse = client.get("/sante")
     assert reponse.status_code == 200
@@ -19,7 +14,7 @@ def test_endpoint_sante_repond_ok():
     assert donnees["service"] == "moteur-decision"
 
 
-def test_endpoint_racine():
+def test_endpoint_racine(client: TestClient):
     """Verifie que l'endpoint racine retourne les informations du moteur."""
     reponse = client.get("/")
     assert reponse.status_code == 200
@@ -32,14 +27,16 @@ def test_endpoint_racine():
 @patch("app.routes.metriques.mesurer_latence_cloud")
 @patch("app.routes.metriques.obtenir_metriques_completes")
 def test_etat_systeme_inclut_decision_temps_reel(
-    mock_metriques, mock_latence, mock_connectivite
+    mock_metriques, mock_latence, mock_connectivite, client: TestClient, admin_token: str
 ):
-    """Verifie que /etat-systeme expose la decision temps reelle du moteur."""
+    """Verifie que /etat-systeme (admin uniquement) expose la decision temps reelle."""
     mock_metriques.return_value = {"cpu_pourcentage": 40.0, "ram_pourcentage": 50.0}
     mock_connectivite.return_value = True
     mock_latence.return_value = 30.0
 
-    reponse = client.get("/etat-systeme")
+    reponse = client.get(
+        "/etat-systeme", headers={"Authorization": f"Bearer {admin_token}"}
+    )
     assert reponse.status_code == 200
     donnees = reponse.json()
 
@@ -61,7 +58,8 @@ def test_etat_systeme_inclut_decision_temps_reel(
 @patch("app.logique_routage.evaluateur_ressources.obtenir_utilisation_ram")
 @patch("app.logique_routage.evaluateur_ressources.obtenir_utilisation_cpu")
 def test_endpoint_routage_accepte_fichier(
-    mock_cpu, mock_ram, mock_latence, mock_connectivite, mock_appel
+    mock_cpu, mock_ram, mock_latence, mock_connectivite, mock_appel,
+    client: TestClient, clinicien_token: str,
 ):
     """Verifie que l'endpoint de routage accepte un fichier et retourne un resultat."""
     mock_cpu.return_value = 40.0
@@ -84,6 +82,7 @@ def test_endpoint_routage_accepte_fichier(
     reponse = client.post(
         "/routage/analyser",
         files={"fichier": ("radiographie.png", contenu_factice, "image/png")},
+        headers={"Authorization": f"Bearer {clinicien_token}"},
     )
     assert reponse.status_code == 200
     donnees = reponse.json()
@@ -109,7 +108,8 @@ def _png_reel_carre() -> bytes:
 @patch("app.logique_routage.evaluateur_ressources.obtenir_utilisation_ram")
 @patch("app.logique_routage.evaluateur_ressources.obtenir_utilisation_cpu")
 def test_endpoint_profil_tb_ne_retourne_qu_un_resultat(
-    mock_cpu, mock_ram, mock_latence, mock_connectivite, mock_appel
+    mock_cpu, mock_ram, mock_latence, mock_connectivite, mock_appel,
+    client: TestClient, clinicien_token: str,
 ):
     """PNG reel : 1 seul resultat (tuberculose), profil expose dans la reponse."""
     mock_cpu.return_value = 40.0
@@ -126,6 +126,7 @@ def test_endpoint_profil_tb_ne_retourne_qu_un_resultat(
     reponse = client.post(
         "/routage/analyser",
         files={"fichier": ("cliche-tb.png", _png_reel_carre(), "image/png")},
+        headers={"Authorization": f"Bearer {clinicien_token}"},
     )
     assert reponse.status_code == 200
     donnees = reponse.json()
@@ -144,7 +145,8 @@ def test_endpoint_profil_tb_ne_retourne_qu_un_resultat(
 @patch("app.logique_routage.evaluateur_ressources.obtenir_utilisation_ram")
 @patch("app.logique_routage.evaluateur_ressources.obtenir_utilisation_cpu")
 def test_endpoint_contexte_pneumonie_surclasse_le_profil(
-    mock_cpu, mock_ram, mock_latence, mock_connectivite, mock_appel
+    mock_cpu, mock_ram, mock_latence, mock_connectivite, mock_appel,
+    client: TestClient, clinicien_token: str,
 ):
     """Contexte pneumonie via Form sur un PNG carre : seul PN est sollicite."""
     mock_cpu.return_value = 40.0
@@ -162,6 +164,7 @@ def test_endpoint_contexte_pneumonie_surclasse_le_profil(
         "/routage/analyser",
         files={"fichier": ("cliche-tb.png", _png_reel_carre(), "image/png")},
         data={"contexte": "pneumonie"},
+        headers={"Authorization": f"Bearer {clinicien_token}"},
     )
     assert reponse.status_code == 200
     donnees = reponse.json()
@@ -170,17 +173,18 @@ def test_endpoint_contexte_pneumonie_surclasse_le_profil(
     assert donnees["filtrage"]["cle_regle"] == "contexte_pneumonie"
 
 
-def test_endpoint_contexte_invalide_refuse():
+def test_endpoint_contexte_invalide_refuse(client: TestClient, clinicien_token: str):
     """Un contexte hors de la liste admise -> 422 (validation avant inference)."""
     reponse = client.post(
         "/routage/analyser",
         files={"fichier": ("cliche.png", _png_reel_carre(), "image/png")},
         data={"contexte": "cardiopathie"},
+        headers={"Authorization": f"Bearer {clinicien_token}"},
     )
     assert reponse.status_code == 422
 
 
-def test_endpoint_racine_expose_profilage():
+def test_endpoint_racine_expose_profilage(client: TestClient):
     """GET / expose le kill-switch et les seuils de profilage."""
     reponse = client.get("/")
     assert reponse.status_code == 200

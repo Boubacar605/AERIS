@@ -17,7 +17,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-const PROTOTYPE_URL = "/dashboard";
+const ACCES_URL = "/login";
 
 export const Route = createFileRoute("/")({
   component: Landing,
@@ -122,17 +122,9 @@ function Navbar() {
         scrolled ? "border-b border-ok/25" : "border-b border-transparent",
       )}
     >
-      <nav className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-5 py-3">
-        <a href="#top" className="flex items-center gap-2.5">
-          <span className="grid size-8 place-items-center rounded-md bg-ok/15 ring-1 ring-ok/40">
-            <Cpu className="size-4 text-ok" />
-          </span>
-          <span className="leading-tight">
-            <span className="block font-mono text-sm font-bold tracking-[0.22em] text-navy-foreground">
-              AERIS
-            </span>
-            <span className="block text-[10px] tracking-wide text-ok">Adaptive Edge-Cloud AI</span>
-          </span>
+      <nav className="flex max-w-6xl items-center justify-between gap-4 px-0 py-3">
+        <a href="#top">
+          <img src="/logo-aeris.png" alt="AERIS" className="h-20 w-56 object-contain" />
         </a>
 
         <ul className="hidden items-center gap-6 md:flex">
@@ -149,7 +141,8 @@ function Navbar() {
         </ul>
 
         <Link
-          to={PROTOTYPE_URL}
+          to={ACCES_URL}
+          search={{}}
           className="rounded-full bg-ok px-4 py-2 text-[13px] font-semibold text-navy transition-opacity hover:opacity-90"
         >
           Accéder au prototype →
@@ -540,7 +533,8 @@ function Landing() {
             <Reveal delay={0.24}>
               <div className="mt-8 flex flex-wrap gap-3">
                 <Link
-                  to={PROTOTYPE_URL}
+                  to={ACCES_URL}
+                  search={{}}
                   className="rounded-md bg-ok px-5 py-2.5 text-sm font-semibold text-navy transition-opacity hover:opacity-90"
                 >
                   Voir le prototype →
@@ -851,7 +845,8 @@ function Landing() {
           </Reveal>
           <Reveal delay={0.1}>
             <Link
-              to={PROTOTYPE_URL}
+              to={ACCES_URL}
+              search={{}}
               className="mt-8 inline-flex items-center gap-2 rounded-md bg-white px-6 py-3 text-sm font-semibold text-navy transition-transform hover:-translate-y-0.5"
             >
               <Radio className="size-4" />

@@ -1,19 +1,27 @@
-import { Link, useRouterState } from "@tanstack/react-router";
+import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import {
   Activity,
-  Cpu,
   FileText,
+  History,
+  Home,
   LayoutGrid,
+  LogOut,
   Network,
   RefreshCw,
   ScanLine,
   Settings,
-  History,
-  Home,
+  UserRound,
+  Users,
 } from "lucide-react";
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 import { fetchAPI } from "@/lib/api";
-import { StatusDot } from "./primitives";
+import {
+  deconnecter,
+  useRole,
+  useUtilisateur,
+  type RoleUtilisateur,
+} from "@/lib/authentification-store";
+import { StatusDot, Tag } from "./primitives";
 import { useClock } from "@/lib/aeris";
 import { cn } from "@/lib/utils";
 
@@ -48,7 +56,10 @@ function FournisseurConnexion({ children }: { children: ReactNode }) {
 
     async function sonder() {
       try {
-        await fetchAPI("/etat-systeme");
+        // /historique est lisible par les deux rôles connectés (contrairement à
+        // /etat-systeme réservé à l'admin) : la jauge de connexion du shell
+        // demeure fiable pour un clinicien comme pour un administrateur.
+        await fetchAPI("/historique");
         if (actif) setConnecte(true);
       } catch {
         if (actif) setConnecte(false);
@@ -107,33 +118,94 @@ function ModeGlobal() {
   );
 }
 
-const NAV = [
-  { to: "/dashboard", label: "Dashboard", icon: LayoutGrid },
+const NAV: ReadonlyArray<{
+  to: string;
+  label: string;
+  icon: typeof LayoutGrid;
+  roles?: readonly RoleUtilisateur[];
+}> = [
+  { to: "/dashboard", label: "Dashboard", icon: LayoutGrid, roles: ["admin"] },
   { to: "/", label: "Présentation", icon: Home },
-  { to: "/diagnostic", label: "Diagnostic", icon: ScanLine },
-  { to: "/resultat", label: "Résultat", icon: FileText },
-  { to: "/historique", label: "Historique", icon: History },
-  { to: "/monitoring", label: "Monitoring", icon: Activity },
-  { to: "/architecture", label: "Architecture", icon: Network },
-  { to: "/settings", label: "Settings", icon: Settings },
-] as const;
+  { to: "/diagnostic", label: "Diagnostic", icon: ScanLine, roles: ["clinicien"] },
+  { to: "/resultat", label: "Résultat", icon: FileText, roles: ["clinicien"] },
+  { to: "/historique", label: "Historique", icon: History, roles: ["admin", "clinicien"] },
+  // Sous-menus d'administration (réservés à l'admin IT).
+  { to: "/admin/utilisateurs", label: "Utilisateurs", icon: Users, roles: ["admin"] },
+  { to: "/admin/patients", label: "Patients", icon: UserRound, roles: ["admin"] },
+  { to: "/monitoring", label: "Monitoring", icon: Activity, roles: ["admin"] },
+  { to: "/architecture", label: "Architecture", icon: Network, roles: ["admin"] },
+  { to: "/settings", label: "Settings", icon: Settings, roles: ["admin"] },
+];
+
+/** Navigation visible pour un rôle donné (null = aucune session). */
+function navigationPour(role: RoleUtilisateur | null) {
+  return NAV.filter(({ roles }) => !roles || (role !== null && roles.includes(role)));
+}
+
+const LIBELLES_ROLE: Record<RoleUtilisateur, string> = {
+  admin: "Administrateur",
+  clinicien: "Clinicien",
+};
+
+const TONES_ROLE: Record<RoleUtilisateur, "ok" | "cloud"> = {
+  admin: "ok",
+  clinicien: "cloud",
+};
+
+function BlocUtilisateur() {
+  const role = useRole();
+  const utilisateur = useUtilisateur();
+  const navigate = useNavigate();
+
+  const seDeconnecter = useCallback(() => {
+    deconnecter();
+    void navigate({ to: "/login", search: {} });
+  }, [navigate]);
+
+  if (!utilisateur || !role) return null;
+
+  const initiales = `${utilisateur.nom[0] ?? ""}${utilisateur.prenom[0] ?? ""}`.toUpperCase();
+
+  return (
+    <div className="flex items-center gap-2 border-t border-navy-line p-3">
+      <span className="grid size-8 shrink-0 place-items-center rounded-full bg-ok/20 font-mono text-[11px] font-bold text-ok">
+        {initiales || "?"}
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-[12px] font-semibold text-navy-foreground">
+          {utilisateur.prenom} {utilisateur.nom}
+        </p>
+        <Tag tone={TONES_ROLE[role]} className="mt-0.5">
+          {LIBELLES_ROLE[role]}
+        </Tag>
+      </div>
+      <button
+        type="button"
+        onClick={seDeconnecter}
+        title="Se déconnecter"
+        aria-label="Se déconnecter"
+        className="grid size-8 shrink-0 place-items-center rounded-md text-navy-muted transition-colors hover:bg-white/10 hover:text-alert"
+      >
+        <LogOut className="size-4" />
+      </button>
+    </div>
+  );
+}
 
 function Sidebar() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const role = useRole();
+  const entrées = navigationPour(role);
   return (
-    <aside className="sticky top-0 hidden h-screen w-[15rem] shrink-0 flex-col bg-navy text-navy-foreground md:flex">
-      <div className="flex items-center gap-2.5 border-b border-navy-line px-4 py-4">
-        <span className="grid size-8 place-items-center rounded-md bg-cloud/20 ring-1 ring-cloud/40">
-          <Cpu className="size-4 text-cloud" />
-        </span>
-        <div className="leading-tight">
-          <p className="font-mono text-sm font-bold tracking-[0.22em]">AERIS</p>
-          <p className="text-[10px] tracking-wide text-navy-muted">Adaptive Edge-Cloud AI</p>
-        </div>
+    <aside className="sticky top-0 hidden h-screen w-[15rem] shrink-0 flex-col border-r border-navy-line bg-navy text-navy-foreground md:flex">
+      <div className="flex shrink-0 flex-col border-b border-navy-line">
+        <Link to="/">
+          <img src="/logo-aeris.png" alt="AERIS" className="w-full object-contain" />
+        </Link>
       </div>
 
-      <nav className="flex-1 space-y-0.5 p-2.5">
-        {NAV.map(({ to, label, icon: Icon }) => {
+      <nav className="flex-1 space-y-0.5 overflow-y-auto p-2.5">
+        {entrées.map(({ to, label, icon: Icon }) => {
           const active = to === "/" ? pathname === "/" : pathname.startsWith(to);
           return (
             <Link
@@ -156,9 +228,12 @@ function Sidebar() {
         })}
       </nav>
 
-      <div className="border-t border-navy-line p-3">
-        <ModeGlobal />
-        <p className="mt-3 px-1 font-mono text-[10px] text-navy-muted">build 0.9.3 · research</p>
+      <div className="shrink-0">
+        <div className="border-t border-navy-line p-3">
+          <ModeGlobal />
+          <p className="mt-3 px-1 font-mono text-[10px] text-navy-muted">build 0.9.3 · research</p>
+        </div>
+        <BlocUtilisateur />
       </div>
     </aside>
   );
@@ -166,9 +241,12 @@ function Sidebar() {
 
 function MobileNav() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const role = useRole();
+  const navigate = useNavigate();
+  const entrées = navigationPour(role);
   return (
     <div className="sticky top-0 z-20 flex gap-1 overflow-x-auto border-b border-navy-line bg-navy px-3 py-2 md:hidden">
-      {NAV.map(({ to, label, icon: Icon }) => {
+      {entrées.map(({ to, label, icon: Icon }) => {
         const active = to === "/" ? pathname === "/" : pathname.startsWith(to);
         return (
           <Link
@@ -184,6 +262,18 @@ function MobileNav() {
           </Link>
         );
       })}
+      <button
+        type="button"
+        onClick={() => {
+          deconnecter();
+          void navigate({ to: "/login", search: {} });
+        }}
+        aria-label="Se déconnecter"
+        title="Se déconnecter"
+        className="ml-auto grid size-8 shrink-0 cursor-pointer place-items-center rounded-md text-navy-muted hover:bg-white/10 hover:text-alert"
+      >
+        <LogOut className="size-3.5" />
+      </button>
     </div>
   );
 }

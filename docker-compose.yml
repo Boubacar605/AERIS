@@ -128,6 +128,14 @@ services:
       - SEUIL_RAM=${SEUIL_RAM:-85}
       - SEUIL_LATENCE_MS=${SEUIL_LATENCE_MS:-100}
       - PROFILAGE_ACTIVE=${PROFILAGE_ACTIVE:-true}
+      # --- Authentification RBAC & notifications OTP ---
+      - JWT_SECRET=${JWT_SECRET:-aeris-dev-secret-a-changer}
+      - ADMIN_INITIAL_EMAIL=${ADMIN_INITIAL_EMAIL:-admin@aeris.local}
+      - ADMIN_INITIAL_MOT_DE_PASSE=${ADMIN_INITIAL_MOT_DE_PASSE:-Admin@aeris2026}
+      - OTP_TTL_MINUTES=${OTP_TTL_MINUTES:-15}
+      - SMTP_HOTE=${SMTP_HOTE:-mailhog}
+      - SMTP_PORT=${SMTP_PORT:-1025}
+      - URL_TABLEAU_DE_BORD=${TABLEAU_DE_BORD_PUBLIQUE:-http://localhost:${TABLEAU_DE_BORD_PORT:-3000}}
     depends_on:
       service-tuberculose-cloud:
         condition: service_started
@@ -196,6 +204,19 @@ services:
       interval: 5s
       timeout: 3s
       retries: 12
+    profiles:
+      - complet
+    networks:
+      - aeris-reseau
+
+  # ===== MAILHOG (SMTP de développement) =====
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: aeris-mailhog
+    restart: unless-stopped
+    ports:
+      - "${MAILHOG_SMTP_PORT:-1025}:1025"   # SMTP — consommé par le moteur
+      - "${MAILHOG_UI_PORT:-8025}:8025"     # Web UI — lecture des emails OTP
     profiles:
       - complet
     networks:

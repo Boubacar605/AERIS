@@ -20,8 +20,9 @@ mémoire seule : aucun repli fragile, aucun crash.
 import asyncio
 import hashlib
 import logging
+import secrets
 from collections import deque
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import (
     BigInteger,
@@ -50,6 +51,7 @@ _logger = logging.getLogger("aeris.persistance")
 
 CAPACITE_REHYDRATATION = 100
 MAX_TENTATIVES_PERSISTANCE = 5
+MAX_TENTATIVES_OTP = 5
 
 # ---------------------------------------------------------------------------
 # Modèles ORM (miroir du schéma SQL infrastructure/postgres/init/02-schema.sql).
@@ -78,6 +80,7 @@ enum_decision_escalade = _enum(
     "escalade_impossible",
     nom="t_decision_escalade",
 )
+enum_role = _enum("admin", "clinicien", nom="t_role")
 
 
 class Patient(Base):
@@ -88,6 +91,8 @@ class Patient(Base):
     sexe: Mapped[str | None] = mapped_column(String(1))
     annee_naissance: Mapped[int | None] = mapped_column(Integer)
     note: Mapped[str | None] = mapped_column(Text)
+    email: Mapped[str | None] = mapped_column(Text, unique=True)
+    nom_complet: Mapped[str | None] = mapped_column(Text)
     cree_le: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=text("now()"))
 
 
@@ -223,6 +228,40 @@ class EscaladeControle(Base):
     decision: Mapped[str] = mapped_column(enum_decision_escalade)
     raison: Mapped[str | None] = mapped_column(Text)
     execute_le: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=text("now()")
+    )
+
+
+class Utilisateur(Base):
+    __tablename__ = "utilisateurs"
+
+    id_utilisateur: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    email: Mapped[str] = mapped_column(String, unique=True, nullable=False)
+    nom: Mapped[str] = mapped_column(String, nullable=False)
+    prenom: Mapped[str] = mapped_column(String, nullable=False)
+    role: Mapped[str] = mapped_column(enum_role, nullable=False)
+    mot_de_passe_hash: Mapped[str] = mapped_column(String, nullable=False)
+    actif: Mapped[bool] = mapped_column(Boolean, default=True)
+    cree_le: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=text("now()")
+    )
+    modifie_le: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class CodeOtp(Base):
+    __tablename__ = "otp_codes"
+
+    id_otp: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    id_patient: Mapped[int] = mapped_column(BigInteger, ForeignKey("patients.id_patient"))
+    id_examen: Mapped[int | None] = mapped_column(
+        BigInteger, ForeignKey("examens_image.id_examen")
+    )
+    email_destination: Mapped[str] = mapped_column(Text, nullable=False)
+    code_hash: Mapped[str] = mapped_column(String, nullable=False)
+    expire_le: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    tentatives: Mapped[int] = mapped_column(Integer, default=0)
+    utilise_le: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    cree_le: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=text("now()")
     )
 
@@ -378,6 +417,339 @@ async def _assurer_referentiels() -> None:
                     )
                 )
 
+            await _assurer_admin_initial(session)
+
+
+# ---------------------------------------------------------------------------
+# Helpers RBAC : utilisateurs, patients, OTP
+# ---------------------------------------------------------------------------
+
+_MAX_TENTATIVES_OTP = 5
+
+
+async def _assurer_admin_initial(session: AsyncSession) -> None:
+    """Cree le compte admin initial si aucun admin actif n'existe."""
+    from app.authentification import hacher_mot_de_passe
+
+    resultat = await session.execute(
+        text("SELECT id_utilisateur FROM utilisateurs WHERE role = 'admin' AND actif = true LIMIT 1")
+    )
+    if resultat.scalar() is not None:
+        return
+
+    hash_mdp = hacher_mot_de_passe(config.admin_initial_mot_de_passe)
+    admin = Utilisateur(
+        email=config.admin_initial_email,
+        nom="Admin",
+        prenom="AERIS",
+        role="admin",
+        mot_de_passe_hash=hash_mdp,
+        actif=True,
+    )
+    session.add(admin)
+    _logger.info("Admin initial cree : %s", config.admin_initial_email)
+
+
+async def obtenir_utilisateur_par_email(email: str) -> Utilisateur | None:
+    if not _sessions:
+        return None
+    async with _sessions() as session:
+        resultat = await session.execute(
+            text("SELECT id_utilisateur FROM utilisateurs WHERE email = :email"),
+            {"email": email},
+        )
+        id_u = resultat.scalar()
+        if id_u is None:
+            return None
+        return await session.get(Utilisateur, id_u)
+
+
+async def obtenir_utilisateur_par_id(id_utilisateur: int) -> Utilisateur | None:
+    if not _sessions:
+        return None
+    async with _sessions() as session:
+        return await session.get(Utilisateur, id_utilisateur)
+
+
+async def lister_utilisateurs() -> list[dict]:
+    if not _sessions:
+        return []
+    async with _sessions() as session:
+        resultat = await session.execute(
+            text(
+                "SELECT id_utilisateur, email, nom, prenom, role, actif, cree_le "
+                "FROM utilisateurs ORDER BY id_utilisateur"
+            )
+        )
+        return [
+            {
+                "id_utilisateur": r[0],
+                "email": r[1],
+                "nom": r[2],
+                "prenom": r[3],
+                "role": r[4],
+                "actif": r[5],
+                "cree_le": _iso(r[6]),
+            }
+            for r in resultat.all()
+        ]
+
+
+async def creer_utilisateur(
+    email: str,
+    nom: str,
+    prenom: str,
+    role: str,
+    mot_de_passe_hash: str,
+) -> Utilisateur:
+    from app.authentification import hacher_mot_de_passe
+
+    async with _sessions() as session:
+        async with session.begin():
+            utilisateur = Utilisateur(
+                email=email,
+                nom=nom,
+                prenom=prenom,
+                role=role,
+                mot_de_passe_hash=hacher_mot_de_passe(mot_de_passe_hash)
+                if not mot_de_passe_hash.startswith("$2")
+                else mot_de_passe_hash,
+                actif=True,
+            )
+            session.add(utilisateur)
+            await session.flush()
+            return utilisateur
+
+
+async def activer_desactiver_utilisateur(id_utilisateur: int, actif: bool) -> bool:
+    if not _sessions:
+        return False
+    async with _sessions() as session:
+        async with session.begin():
+            resultat = await session.execute(
+                text(
+                    "UPDATE utilisateurs SET actif = :actif, modifie_le = now() "
+                    "WHERE id_utilisateur = :id"
+                ),
+                {"id": id_utilisateur, "actif": actif},
+            )
+            return resultat.rowcount > 0
+
+
+async def lister_patients() -> list[dict]:
+    if not _sessions:
+        return []
+    async with _sessions() as session:
+        resultat = await session.execute(
+            text(
+                "SELECT id_patient, code_patient, nom_complet, email, sexe, "
+                "       annee_naissance, note, cree_le "
+                "FROM patients ORDER BY id_patient"
+            )
+        )
+        return [
+            {
+                "id_patient": r[0],
+                "code_patient": r[1],
+                "nom_complet": r[2],
+                "email": r[3],
+                "sexe": r[4],
+                "annee_naissance": r[5],
+                "note": r[6],
+                "cree_le": _iso(r[7]),
+            }
+            for r in resultat.all()
+        ]
+
+
+async def creer_patient(
+    code_patient: str,
+    nom_complet: str | None = None,
+    email: str | None = None,
+    sexe: str | None = None,
+    annee_naissance: int | None = None,
+    note: str | None = None,
+) -> Patient:
+    async with _sessions() as session:
+        async with session.begin():
+            patient = Patient(
+                code_patient=code_patient,
+                nom_complet=nom_complet,
+                email=email,
+                sexe=sexe,
+                annee_naissance=annee_naissance,
+                note=note,
+            )
+            session.add(patient)
+            await session.flush()
+            return patient
+
+
+async def obtenir_patient_par_code(code_patient: str) -> Patient | None:
+    if not _sessions:
+        return None
+    async with _sessions() as session:
+        resultat = await session.execute(
+            text("SELECT id_patient FROM patients WHERE code_patient = :code"),
+            {"code": code_patient},
+        )
+        id_p = resultat.scalar()
+        if id_p is None:
+            return None
+        return await session.get(Patient, id_p)
+
+
+async def obtenir_patient_par_id(id_patient: int) -> Patient | None:
+    if not _sessions:
+        return None
+    async with _sessions() as session:
+        return await session.get(Patient, id_patient)
+
+
+# ---------------------------------------------------------------------------
+# OTP
+# ---------------------------------------------------------------------------
+
+from app.otp import generer_otp, hacher_otp  # noqa: E402
+
+
+async def generer_et_stocker_otp(
+    id_patient: int,
+    id_examen: int | None,
+    email: str,
+) -> str:
+    """Genere un OTP, le stocke hashé en base, retourne le code en clair."""
+    code = generer_otp(config.otp_longueur)
+    code_hash = hacher_otp(code)
+    expire_le = datetime.now(timezone.utc) + timedelta(minutes=config.otp_ttl_minutes)
+
+    async with _sessions() as session:
+        async with session.begin():
+            otp = CodeOtp(
+                id_patient=id_patient,
+                id_examen=id_examen,
+                email_destination=email,
+                code_hash=code_hash,
+                expire_le=expire_le,
+            )
+            session.add(otp)
+
+    return code
+
+
+async def verifier_et_consommer_otp(code: str, email: str) -> Patient | None:
+    """Verifie un OTP (non expire, non utilise, tentatives < max).
+
+    Retourne le Patient associe si valide, None sinon.
+    Le code est consomme (utilise_le mis a jour) en cas de succes.
+    """
+    from app.otp import hacher_otp as _hacher
+
+    code_hash = _hacher(code)
+
+    async with _sessions() as session:
+        async with session.begin():
+            resultat = await session.execute(
+                text(
+                    "SELECT id_otp, id_patient, code_hash, expire_le, "
+                    "       tentatives, utilise_le, email_destination "
+                    "FROM otp_codes WHERE email_destination = :email "
+                    "ORDER BY id_otp DESC LIMIT 1"
+                ),
+                {"email": email},
+            )
+            ligne = resultat.first()
+            if ligne is None:
+                return None
+
+            id_otp, id_patient, hash_db, expire_le, tentatives, utilise_le, email_dest = ligne
+
+            # Deja utilise
+            if utilise_le is not None:
+                return None
+
+            # Trop de tentatives
+            if tentatives >= _MAX_TENTATIVES_OTP:
+                return None
+
+            # Expire
+            now = datetime.now(timezone.utc)
+            if expire_le.tzinfo is None:
+                expire_le = expire_le.replace(tzinfo=timezone.utc)
+            if now > expire_le:
+                return None
+
+            # Mauvais code
+            if hash_db != code_hash:
+                await session.execute(
+                    text("UPDATE otp_codes SET tentatives = tentatives + 1 WHERE id_otp = :id"),
+                    {"id": id_otp},
+                )
+                return None
+
+            # Code valide → consommer
+            await session.execute(
+                text("UPDATE otp_codes SET utilise_le = now() WHERE id_otp = :id"),
+                {"id": id_otp},
+            )
+
+            return await session.get(Patient, id_patient)
+
+
+async def obtenir_resultats_par_patient(id_patient: int) -> list[dict]:
+    """Recupere les resultats diagnostiques d'un patient via ses examens."""
+    if not _sessions:
+        return []
+    async with _sessions() as session:
+        resultat = await session.execute(
+            text(
+                "SELECT d.id_diagnostic, d.execute_le, d.destination_choisie, "
+                "       e.nom_fichier, e.code_examen "
+                "FROM diagnostics d "
+                "JOIN examens_image e ON d.id_examen = e.id_examen "
+                "WHERE e.id_patient = :id_patient "
+                "ORDER BY d.id_diagnostic DESC LIMIT 20"
+            ),
+            {"id_patient": id_patient},
+        )
+        diagnostics = resultat.all()
+
+        resultats = []
+        for diag in diagnostics:
+            id_diag = diag[0]
+            resultats_patho = (
+                await session.execute(
+                    text(
+                        "SELECT pathologie, prediction, confiance_finale, "
+                        "       source_finale, temps_inference_ms "
+                        "FROM resultats_pathologiques "
+                        "WHERE id_diagnostic = :id ORDER BY rang"
+                    ),
+                    {"id": id_diag},
+                )
+            ).all()
+            resultats.append(
+                {
+                    "id_diagnostic": id_diag,
+                    "horodatage": _iso(diag[1]),
+                    "destination": diag[2],
+                    "nom_fichier": diag[3],
+                    "code_examen": diag[4],
+                    "resultats": [
+                        {
+                            "pathologie": r[0],
+                            "prediction": r[1],
+                            "confiance": float(r[2]),
+                            "source": r[3],
+                            "temps_inference_ms": float(r[4]),
+                        }
+                        for r in resultats_patho
+                    ],
+                }
+            )
+
+    return resultats
+
 
 # ---------------------------------------------------------------------------
 # Alimentation (non bloquant) et worker
@@ -491,10 +863,15 @@ async def _ecrire_telemetrie(observations: list[dict]) -> None:
 async def _ecrire_diagnostics(items: list[dict]) -> None:
     async with _sessions() as session:
         async with session.begin():
-            id_patient = await _obtenir_patient_par_defaut(session)
             id_version = await _obtenir_version_courante(session)
 
             for element in items:
+                # id_patient du sujet réel (code_patient transmis à l'analyse)
+                # si présent dans le lot ; sinon, repli sur le patient
+                # technique anonyme par défaut.
+                id_patient = element.get("id_patient") or await _obtenir_patient_par_defaut(
+                    session
+                )
                 id_examen = await _obtenir_ou_creer_examen(session, element, id_patient)
                 diagnostic = Diagnostic(
                     id_examen=id_examen,
@@ -595,6 +972,22 @@ async def _obtenir_ou_creer_examen(
     )
     identifiant = resultat.scalar()
     if identifiant is not None:
+        # Un examen déjà présent (même empreinte) peut avoir été créé sans
+        # connaitre le sujet réel (patient technique) : on le rattache au
+        # patient déclaré par le code_patient afin que ses résultats lui
+        # soient restitués via le flux OTP.
+        ligne = await session.execute(
+            text("SELECT id_patient FROM examens_image WHERE id_examen = :id"),
+            {"id": identifiant},
+        )
+        if ligne.scalar() != id_patient:
+            await session.execute(
+                text(
+                    "UPDATE examens_image SET id_patient = :p "
+                    "WHERE id_examen = :id"
+                ),
+                {"p": id_patient, "id": identifiant},
+            )
         return identifiant
     examen = ExamenImage(
         id_patient=id_patient,
