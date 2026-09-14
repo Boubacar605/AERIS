@@ -10,8 +10,9 @@ import time
 from typing import Annotated
 
 import httpx
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Depends, Query
 
+from app.authentification import exiger_role
 from app.config import config
 from app.logique_routage.evaluateur_reseau import (
     mesurer_latence_cloud,
@@ -32,7 +33,9 @@ routeur_metriques = APIRouter(tags=["Metriques"])
 
 
 @routeur_metriques.get("/etat-systeme")
-async def obtenir_etat_systeme() -> dict:
+async def obtenir_etat_systeme(
+    _=Depends(exiger_role("admin")),
+) -> dict:
     """Retourne l'etat complet du systeme pour le tableau de bord.
 
     La decision de routage temps reel est calculee a partir des metriques
@@ -88,6 +91,7 @@ async def obtenir_etat_systeme() -> dict:
 @routeur_metriques.get("/historique")
 async def obtenir_historique(
     limite: Annotated[int, Query(ge=1, le=500)] = CAPACITE_HISTORIQUE,
+    _=Depends(exiger_role("admin", "clinicien")),
 ) -> dict:
     """Retourne les derniers diagnostics realises par le moteur.
 
@@ -102,7 +106,9 @@ async def obtenir_historique(
 
 
 @routeur_metriques.get("/sante-services")
-async def obtenir_sante_services() -> dict:
+async def obtenir_sante_services(
+    _=Depends(exiger_role("admin")),
+) -> dict:
     """Interroge la sante de chaque service IA (TB/PN x Edge/Cloud).
 
     Appelle GET /sante sur les 4 conteneurs de services et retourne

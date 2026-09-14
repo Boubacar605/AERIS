@@ -1,4 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { exigerRole } from "@/lib/authentification";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Activity,
@@ -7,6 +8,7 @@ import {
   Cloud,
   Cpu,
   Info,
+  MailCheck,
   Play,
   RotateCcw,
   ScanLine,
@@ -31,6 +33,7 @@ import { cn } from "@/lib/utils";
 import { Pie, PieChart, ResponsiveContainer } from "recharts";
 
 export const Route = createFileRoute("/diagnostic")({
+  beforeLoad: () => exigerRole("clinicien"),
   component: DiagnosticPage,
   head: () => ({
     meta: [
@@ -326,6 +329,8 @@ function DiagnosticContent() {
   const { decision: decisionTempsReel } = useEtatSysteme(5000);
   const [mode, setMode] = useState<ModeRoutage>("auto");
   const [contexte, setContexte] = useState<ContexteMode>("auto");
+  const [codePatient, setCodePatient] = useState("");
+  const [notifiePatient, setNotifiePatient] = useState(false);
   const [fichier, setFichier] = useState<File | null>(null);
   const imagePreviewUrl = useMemo(() => (fichier ? URL.createObjectURL(fichier) : null), [fichier]);
   const [resultat, setResultat] = useState<ResultatAnalyse | null>(null);
@@ -361,6 +366,7 @@ function DiagnosticContent() {
     purgeTimers();
     setResultat(null);
     setErreurLive(false);
+    setNotifiePatient(false);
     setStep(0);
 
     // Animation visuelle du pipeline pendant l'appel réseau.
@@ -374,7 +380,10 @@ function DiagnosticContent() {
         fichier,
         mode === "auto" ? undefined : mode,
         contexte,
+        codePatient.trim() || undefined,
       );
+      // Si un code patient valide a été fourni, le moteur a envoyé l'email OTP.
+      if (codePatient.trim()) setNotifiePatient(true);
       setResultat({
         destination: reponse.decision.destination,
         raison: reponse.decision.raison,
@@ -405,6 +414,7 @@ function DiagnosticContent() {
     setStep(-1);
     setResultat(null);
     setErreurLive(false);
+    setNotifiePatient(false);
   };
 
   const navigate = useNavigate();
@@ -417,7 +427,7 @@ function DiagnosticContent() {
       resultat,
       horodatage: new Date().toISOString(),
     });
-    navigate({ to: "/resultat" });
+    navigate({ to: "/resultat", search: {} });
   };
 
   const moteurIndisponible = !connecte;
@@ -546,6 +556,32 @@ function DiagnosticContent() {
               <p className="mt-1.5 font-mono text-[10px] text-muted-foreground">
                 Un contexte clinique prime sur le triage automatique par le format.
               </p>
+
+              <label className="mt-4 block">
+                <span className="label-xs">
+                  Code patient{" "}
+                  <span className="font-normal text-muted-foreground">(optionnel)</span>
+                </span>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  value={codePatient}
+                  onChange={(e) => setCodePatient(e.target.value.replace(/\s/g, "").slice(0, 16))}
+                  placeholder="ex. AER-2025-001"
+                  className="mt-1.5 w-full rounded-md border border-border bg-background px-3 py-2 font-mono text-[11px] outline-none placeholder:text-muted-foreground/50 focus:border-primary/60"
+                />
+              </label>
+              {notifiePatient ? (
+                <p className="mt-2 flex items-start gap-1.5 rounded-md border border-ok/30 bg-ok-soft px-3 py-2 font-mono text-[10px] text-ok">
+                  <MailCheck className="mt-0.5 size-3.5 shrink-0" />
+                  Email OTP envoyé au patient — code {codePatient}
+                </p>
+              ) : codePatient && resultat ? (
+                <p className="mt-2 flex items-start gap-1.5 rounded-md border border-warn/30 bg-warn-soft/40 px-3 py-2 font-mono text-[10px] text-warn">
+                  <Info className="mt-0.5 size-3.5 shrink-0" />
+                  Patient introuvable ou sans email — aucun OTP envoyé.
+                </p>
+              ) : null}
 
               <div className="mt-4 flex gap-2">
                 <button

@@ -41,6 +41,29 @@ class ConfigMoteurDecision(BaseSettings):
     # Flush par lot du worker de persistance (secondes)
     persistance_interval_seconde: float = 2.0
 
+    # --- Authentification RBAC ---
+    jwt_secret: str = "aeris-dev-secret-a-changer"
+    jwt_ttl_acces_minutes: int = 30
+    jwt_ttl_rafraichissement_jours: int = 7
+
+    # OTP patient (acces resultat sans compte)
+    otp_ttl_minutes: int = 15
+    otp_longueur: int = 6
+
+    # SMTP (MailHog en dev, vide = fallback log)
+    smtp_hote: str = ""
+    smtp_port: int = 1025
+    smtp_utilisateur: str = ""
+    smtp_mot_de_passe: str = ""
+    smtp_expediteur: str = "aeris@local"
+
+    # URL du tableau de bord (pour construire le lien OTP dans les emails)
+    url_tableau_de_bord: str = "http://localhost:3000"
+
+    # Compte admin initial (bootstrap au demarrage si aucun admin n'existe)
+    admin_initial_email: str = "admin@aeris.local"
+    admin_initial_mot_de_passe: str = "Admin@aeris2026"
+
     class Config:
         env_file = ".env"
         extra = "ignore"

@@ -7,9 +7,11 @@ import {
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
-import { type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
+import { hydraterSession, useSession } from "@/lib/authentification-store";
+import { pageAccueilPourRole, rolesRequisesPour } from "@/lib/authentification";
 
 function NotFoundComponent() {
   return (
@@ -91,7 +93,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         rel: "stylesheet",
         href: appCss,
       },
-      { rel: "icon", href: "/favicon.ico", type: "image/x-icon" },
+      { rel: "icon", href: "/logo-aeris.png", type: "image/png" },
     ],
   }),
   shellComponent: RootShell,
@@ -114,11 +116,50 @@ function RootShell({ children }: { children: ReactNode }) {
   );
 }
 
+/**
+ * Garde post-hydratation : après lecture de la session (localStorage), on
+ * vérifie que le chemin courant est autorisé pour le rôle connecté. Couvre le
+ * cas d'un rechargement direct d'une page protégée : le `beforeLoad` ne voit
+ * pas encore de session au moment du boot, ce contrôle rétablit la sécurité.
+ */
+function GardeAcheminement() {
+  const session = useSession();
+  const router = useRouter();
+  const [hydrate, setHydrate] = useState(false);
+
+  useEffect(() => {
+    hydraterSession(); // lit localStorage une fois, côté client uniquement
+    setHydrate(true);
+  }, []);
+
+  useEffect(() => {
+    if (!hydrate) return; // avant hydratation, le rendu « serveur » s'applique
+
+    const chemin = window.location.pathname;
+    const requis = rolesRequisesPour(chemin);
+    if (!requis) return;
+
+    if (!session) {
+      void router.navigate({
+        to: "/login",
+        search: { retro: chemin + window.location.search },
+      });
+      return;
+    }
+    if (!requis.includes(session.personne.role)) {
+      void router.navigate({ to: pageAccueilPourRole(session.personne.role) });
+    }
+  }, [session, router, hydrate]);
+
+  return null;
+}
+
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
 
   return (
     <QueryClientProvider client={queryClient}>
+      <GardeAcheminement />
       {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
       <Outlet />
     </QueryClientProvider>

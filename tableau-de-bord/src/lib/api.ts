@@ -4,7 +4,18 @@
  * L'URL de base provient de la variable d'environnement VITE_URL_API
  * (définie par docker-compose). En développement local sans variable,
  * on utilise localhost:8003 (port par défaut du moteur de décision).
+ *
+ * Depuis l'introduction du RBAC, chaque requête porte le jeton d'accès de la
+ * session courante. Un 401 déclenche une tentative de rafraîchissement
+ * unique ; si le refresh échoue, la session est clôturée (déconnexion).
  */
+
+import {
+  deconnecter,
+  definirSession,
+  obtenirSession,
+  type RoleUtilisateur,
+} from "@/lib/authentification-store";
 
 const BASE_URL = (import.meta.env["VITE_URL_API"] as string | undefined) ?? "http://localhost:8003";
 
@@ -21,11 +32,51 @@ export class ApiError extends Error {
 /** Délai d'attente court pour le polling (le backend doit être réactif). */
 const TIMEOUT_POLLING_MS = 4000;
 
-export async function fetchAPI<T>(path: string, init?: RequestInit): Promise<T> {
+/** Injecte le Bearer token de la session courante dans les en-têtes. */
+function avecAuthentification(headers: Headers): void {
+  const session = obtenirSession();
+  if (session?.acces_token) headers.set("Authorization", `Bearer ${session.acces_token}`);
+}
+
+/** Tente de renouveler le jeton d'accès. Retourne faux (et déconnecte) sinon. */
+async function tenterRafraichir(): Promise<boolean> {
+  const session = obtenirSession();
+  if (!session?.rafraichissement_token) {
+    deconnecter();
+    return false;
+  }
+  try {
+    const res = await fetch(`${BASE_URL}/auth/rafraichir`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ rafraichissement_token: session.rafraichissement_token }),
+      signal: AbortSignal.timeout(TIMEOUT_POLLING_MS),
+    });
+    if (!res.ok) {
+      deconnecter();
+      return false;
+    }
+    const donnees = (await res.json()) as { acces_token: string };
+    definirSession({ ...session, acces_token: donnees.acces_token });
+    return true;
+  } catch {
+    deconnecter();
+    return false;
+  }
+}
+
+export async function fetchAPI<T>(path: string, init?: RequestInit, retente = false): Promise<T> {
+  const headers = new Headers(init?.headers);
+  avecAuthentification(headers);
   const res = await fetch(`${BASE_URL}${path}`, {
     signal: AbortSignal.timeout(TIMEOUT_POLLING_MS),
     ...init,
+    headers,
   });
+  // Jeton expiré : un seul refresh, puis une seule nouvelle tentative.
+  if (res.status === 401 && !retente && (await tenterRafraichir())) {
+    return fetchAPI<T>(path, init, true);
+  }
   if (!res.ok) throw new ApiError(res.status, `API ${res.status} sur ${path}`);
   return (await res.json()) as T;
 }
@@ -36,14 +87,19 @@ export async function uploadImage(
   file: File,
   forceDestination?: string,
   contexte?: ContexteDepistage,
+  codePatient?: string,
 ): Promise<ReponseRoutage> {
   const form = new FormData();
   form.append("fichier", file);
   if (forceDestination) form.append("force_destination", forceDestination);
   if (contexte && contexte !== "auto") form.append("contexte", contexte);
+  if (codePatient) form.append("code_patient", codePatient);
+  const headers = new Headers();
+  avecAuthentification(headers);
   const res = await fetch(`${BASE_URL}${path}`, {
     method: "POST",
     body: form,
+    headers,
     signal: AbortSignal.timeout(30_000),
   });
   if (!res.ok) throw new ApiError(res.status, `API ${res.status} sur ${path}`);
@@ -227,4 +283,140 @@ export async function obtenirSeuils(): Promise<SeuilsMoteur> {
   const data = await fetchAPI<{ seuils?: SeuilsMoteur }>("/");
   if (!data.seuils) throw new ApiError(0, "Seuils absents de la réponse racine");
   return data.seuils;
+}
+
+/* --------------------------- Authentification --------------------------- */
+
+/** Personne restituée par le backend (profil de la session). */
+export type Personne = {
+  id_utilisateur: number;
+  email: string;
+  nom: string;
+  prenom: string;
+  role: RoleUtilisateur;
+  actif?: boolean;
+};
+
+export type ReponseConnexion = {
+  acces_token: string;
+  rafraichissement_token: string;
+  personne: Personne;
+};
+
+/** POST /auth/connexion — email + mot de passe -> tokens + profil. */
+export async function connexion(email: string, motDePasse: string): Promise<ReponseConnexion> {
+  const data = await fetchAPI<ReponseConnexion>("/auth/connexion", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, mot_de_passe: motDePasse }),
+  });
+  return data;
+}
+
+/* ------------------------------- Administration -------------------------- */
+
+export type UtilisateurAdmin = Personne;
+
+export type CreerUtilisateurRequete = {
+  email: string;
+  nom: string;
+  prenom: string;
+  role: RoleUtilisateur;
+  mot_de_passe: string;
+};
+
+export type PatientAdmin = {
+  id_patient: number;
+  code_patient: string;
+  nom_complet: string | null;
+  email: string | null;
+  sexe: string | null;
+  annee_naissance: number | null;
+  note: string | null;
+  cree_le?: string | null;
+};
+
+export type CreerPatientRequete = {
+  code_patient: string;
+  nom_complet?: string | null;
+  email?: string | null;
+  sexe?: string | null;
+  annee_naissance?: number | null;
+  note?: string | null;
+};
+
+export async function listerUtilisateurs(): Promise<UtilisateurAdmin[]> {
+  return fetchAPI<UtilisateurAdmin[]>("/admin/utilisateurs");
+}
+
+export async function creerUtilisateur(
+  requete: CreerUtilisateurRequete,
+): Promise<UtilisateurAdmin> {
+  return fetchAPI<UtilisateurAdmin>("/admin/utilisateurs", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(requete),
+  });
+}
+
+/** PATCH /admin/utilisateurs/{id} — active/désactive un compte ou change son rôle. */
+export async function modifierUtilisateur(
+  id: number,
+  changements: Partial<Pick<CreerUtilisateurRequete, "role">> & {
+    actif?: boolean;
+    mot_de_passe?: string;
+  },
+): Promise<unknown> {
+  return fetchAPI(`/admin/utilisateurs/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(changements),
+  });
+}
+
+export async function listerPatients(): Promise<PatientAdmin[]> {
+  return fetchAPI<PatientAdmin[]>("/admin/patients");
+}
+
+export async function creerPatient(requete: CreerPatientRequete): Promise<PatientAdmin> {
+  return fetchAPI<PatientAdmin>("/admin/patients", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(requete),
+  });
+}
+
+export async function renvoyerOtp(idPatient: number): Promise<{ statut: string; email: string }> {
+  return fetchAPI(`/admin/patients/${idPatient}/renvoyer-otp`, { method: "POST" });
+}
+
+/* ------------------------------- Accès patient --------------------------- */
+
+/** Un examen avec ses verdicts, tel que rendu au patient. */
+export type ResultatOtp = {
+  id_diagnostic: string;
+  code_examen?: string;
+  execute_le?: string;
+  resultats: Array<{
+    pathologie: string;
+    prediction: string;
+    confiance: number;
+  }>;
+  destination?: string;
+  temps_total_ms?: number;
+};
+
+export type ReponseAccesResultat = {
+  patient: { code_patient: string; nom_complet: string | null };
+  resultats: ResultatOtp[];
+};
+
+/** POST /acces-resultat — OTP 6 chiffres + email -> dossier patient (texte seul). */
+export async function verifierOtp(codeOtp: string, email: string): Promise<ReponseAccesResultat> {
+  const data = await fetchAPI<ReponseAccesResultat>("/acces-resultat", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ code_otp: codeOtp, email }),
+  });
+  return data;
 }

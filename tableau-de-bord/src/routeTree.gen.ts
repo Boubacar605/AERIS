@@ -10,17 +10,26 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AdminRouteImport } from './routes/admin'
 import { Route as ArchitectureRouteImport } from './routes/architecture'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as DiagnosticRouteImport } from './routes/diagnostic'
 import { Route as HistoriqueRouteImport } from './routes/historique'
+import { Route as LoginRouteImport } from './routes/login'
 import { Route as MonitoringRouteImport } from './routes/monitoring'
 import { Route as ResultatRouteImport } from './routes/resultat'
 import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as AdminPatientsRouteImport } from './routes/admin/patients'
+import { Route as AdminUtilisateursRouteImport } from './routes/admin/utilisateurs'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminRoute = AdminRouteImport.update({
+  id: '/admin',
+  path: '/admin',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ArchitectureRoute = ArchitectureRouteImport.update({
@@ -43,6 +52,11 @@ const HistoriqueRoute = HistoriqueRouteImport.update({
   path: '/historique',
   getParentRoute: () => rootRouteImport,
 } as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const MonitoringRoute = MonitoringRouteImport.update({
   id: '/monitoring',
   path: '/monitoring',
@@ -58,77 +72,113 @@ const SettingsRoute = SettingsRouteImport.update({
   path: '/settings',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminPatientsRoute = AdminPatientsRouteImport.update({
+  id: '/patients',
+  path: '/patients',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminUtilisateursRoute = AdminUtilisateursRouteImport.update({
+  id: '/utilisateurs',
+  path: '/utilisateurs',
+  getParentRoute: () => AdminRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/admin': typeof AdminRouteWithChildren
   '/architecture': typeof ArchitectureRoute
   '/dashboard': typeof DashboardRoute
   '/diagnostic': typeof DiagnosticRoute
   '/historique': typeof HistoriqueRoute
+  '/login': typeof LoginRoute
   '/monitoring': typeof MonitoringRoute
   '/resultat': typeof ResultatRoute
   '/settings': typeof SettingsRoute
+  '/admin/patients': typeof AdminPatientsRoute
+  '/admin/utilisateurs': typeof AdminUtilisateursRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/admin': typeof AdminRouteWithChildren
   '/architecture': typeof ArchitectureRoute
   '/dashboard': typeof DashboardRoute
   '/diagnostic': typeof DiagnosticRoute
   '/historique': typeof HistoriqueRoute
+  '/login': typeof LoginRoute
   '/monitoring': typeof MonitoringRoute
   '/resultat': typeof ResultatRoute
   '/settings': typeof SettingsRoute
+  '/admin/patients': typeof AdminPatientsRoute
+  '/admin/utilisateurs': typeof AdminUtilisateursRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/admin': typeof AdminRouteWithChildren
   '/architecture': typeof ArchitectureRoute
   '/dashboard': typeof DashboardRoute
   '/diagnostic': typeof DiagnosticRoute
   '/historique': typeof HistoriqueRoute
+  '/login': typeof LoginRoute
   '/monitoring': typeof MonitoringRoute
   '/resultat': typeof ResultatRoute
   '/settings': typeof SettingsRoute
+  '/admin/patients': typeof AdminPatientsRoute
+  '/admin/utilisateurs': typeof AdminUtilisateursRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/admin'
     | '/architecture'
     | '/dashboard'
     | '/diagnostic'
     | '/historique'
+    | '/login'
     | '/monitoring'
     | '/resultat'
     | '/settings'
+    | '/admin/patients'
+    | '/admin/utilisateurs'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/admin'
     | '/architecture'
     | '/dashboard'
     | '/diagnostic'
     | '/historique'
+    | '/login'
     | '/monitoring'
     | '/resultat'
     | '/settings'
+    | '/admin/patients'
+    | '/admin/utilisateurs'
   id:
     | '__root__'
     | '/'
+    | '/admin'
     | '/architecture'
     | '/dashboard'
     | '/diagnostic'
     | '/historique'
+    | '/login'
     | '/monitoring'
     | '/resultat'
     | '/settings'
+    | '/admin/patients'
+    | '/admin/utilisateurs'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AdminRoute: typeof AdminRouteWithChildren
   ArchitectureRoute: typeof ArchitectureRoute
   DashboardRoute: typeof DashboardRoute
   DiagnosticRoute: typeof DiagnosticRoute
   HistoriqueRoute: typeof HistoriqueRoute
+  LoginRoute: typeof LoginRoute
   MonitoringRoute: typeof MonitoringRoute
   ResultatRoute: typeof ResultatRoute
   SettingsRoute: typeof SettingsRoute
@@ -141,6 +191,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin': {
+      id: '/admin'
+      path: '/admin'
+      fullPath: '/admin'
+      preLoaderRoute: typeof AdminRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/architecture': {
@@ -171,6 +228,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof HistoriqueRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/monitoring': {
       id: '/monitoring'
       path: '/monitoring'
@@ -192,15 +256,43 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin/patients': {
+      id: '/admin/patients'
+      path: '/patients'
+      fullPath: '/admin/patients'
+      preLoaderRoute: typeof AdminPatientsRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/utilisateurs': {
+      id: '/admin/utilisateurs'
+      path: '/utilisateurs'
+      fullPath: '/admin/utilisateurs'
+      preLoaderRoute: typeof AdminUtilisateursRouteImport
+      parentRoute: typeof AdminRoute
+    }
   }
 }
 
+interface AdminRouteChildren {
+  AdminPatientsRoute: typeof AdminPatientsRoute
+  AdminUtilisateursRoute: typeof AdminUtilisateursRoute
+}
+
+const AdminRouteChildren: AdminRouteChildren = {
+  AdminPatientsRoute: AdminPatientsRoute,
+  AdminUtilisateursRoute: AdminUtilisateursRoute,
+}
+
+const AdminRouteWithChildren = AdminRoute._addFileChildren(AdminRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AdminRoute: AdminRouteWithChildren,
   ArchitectureRoute: ArchitectureRoute,
   DashboardRoute: DashboardRoute,
   DiagnosticRoute: DiagnosticRoute,
   HistoriqueRoute: HistoriqueRoute,
+  LoginRoute: LoginRoute,
   MonitoringRoute: MonitoringRoute,
   ResultatRoute: ResultatRoute,
   SettingsRoute: SettingsRoute,

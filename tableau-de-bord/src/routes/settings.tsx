@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { exigerRole } from "@/lib/authentification";
 import { AppShell, PageHeader } from "@/components/aeris/AppShell";
 import {
   EtatIndisponible,
@@ -11,6 +12,7 @@ import { useSeuilsLive, useServiceHealthLive } from "@/hooks/use-api";
 import { formatUptime } from "@/lib/format";
 
 export const Route = createFileRoute("/settings")({
+  beforeLoad: () => exigerRole("admin"),
   component: SettingsPage,
   head: () => ({
     meta: [

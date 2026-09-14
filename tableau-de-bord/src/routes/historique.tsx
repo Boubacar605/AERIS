@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { exigerRole } from "@/lib/authentification";
 import { useMemo, useState } from "react";
 import { CheckCircle2, Search, XCircle } from "lucide-react";
 import { AppShell, PageHeader } from "@/components/aeris/AppShell";
@@ -13,6 +14,7 @@ import { useHistoriqueLive } from "@/hooks/use-api";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/historique")({
+  beforeLoad: () => exigerRole("admin", "clinicien"),
   component: HistoryPage,
   head: () => ({
     meta: [

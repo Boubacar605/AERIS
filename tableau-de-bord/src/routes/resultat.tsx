@@ -1,14 +1,38 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { ArrowLeft, BadgeCheck, FileText, ScanLine, ThumbsDown, Timer } from "lucide-react";
-import { useState } from "react";
+import {
+  ArrowLeft,
+  BadgeCheck,
+  FileText,
+  KeyRound,
+  Loader2,
+  Mail,
+  ScanLine,
+  ShieldAlert,
+  ThumbsDown,
+  Timer,
+} from "lucide-react";
+import { useEffect, useState, type FormEvent } from "react";
 import { AppShell, PageHeader } from "@/components/aeris/AppShell";
 import { ImageViewer } from "@/components/aeris/ImageViewer";
+import { PatientResult } from "@/components/aeris/PatientResult";
 import { Panel, Tag } from "@/components/aeris/primitives";
+import { ApiError, verifierOtp, type ReponseAccesResultat } from "@/lib/api";
 import { genererCompteRendu, type ToneFiabilite } from "@/lib/compte-rendu";
 import { useResultat } from "@/lib/resultat-store";
+import { exigerRole, pageAccueilPourRole } from "@/lib/authentification";
+import { sessionHydratee, useSession } from "@/lib/authentification-store";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/resultat")({
+  validateSearch: (search: Record<string, unknown>): { otp?: string } => {
+    const bruto = search["otp"];
+    const otp = typeof bruto === "string" && bruto.length > 0 ? bruto : undefined;
+    return otp ? { otp } : {};
+  },
+  // Le mode patient (?otp=…) est public ; la vue clinicien exige ce rôle.
+  beforeLoad: ({ search }) => {
+    if (!search.otp) exigerClinique();
+  },
   component: ResultatPage,
   head: () => ({
     meta: [
@@ -16,7 +40,7 @@ export const Route = createFileRoute("/resultat")({
       {
         name: "description",
         content:
-          "Compte rendu radiologique et relecture d'image de l'examen — approuvez ou contestez la décision IA.",
+          "Compte rendu radiologique — relecture clinicienne d'un examen ou résultats du patient via code OTP.",
       },
       { property: "og:title", content: "Résultat · AERIS" },
       { property: "og:type", content: "website" },
@@ -24,7 +48,152 @@ export const Route = createFileRoute("/resultat")({
   }),
 });
 
+/** Garde locale : la vue clinicien de /resultat n'est pas dans la table
+ * ROLES_POUR_PREFIXE (le chemin sert aussi le mode patient public). */
+function exigerClinique(): void {
+  exigerRole("clinicien");
+}
+
+/**
+ * Point d'entrée dual :
+ * - avec ?otp= : flux patient (public, aucun AppShell) ;
+ * - sinon : compte rendu clinicien (AppShell, rôle exigé).
+ */
 function ResultatPage() {
+  const { otp } = Route.useSearch();
+  if (otp) return <PatientOtpHub />;
+  return <ResultatClinique />;
+}
+
+/* ------------------------------ Mode patient ------------------------------ */
+
+function PatientOtpHub() {
+  const { otp } = Route.useSearch();
+  const [email, setEmail] = useState("");
+  const [code, setCode] = useState(otp ?? "");
+  const [enCours, setEnCours] = useState(false);
+  const [erreur, setErreur] = useState<string | null>(null);
+  const [donnees, setDonnees] = useState<ReponseAccesResultat | null>(null);
+
+  async function soumettre(e: FormEvent) {
+    e.preventDefault();
+    setEnCours(true);
+    setErreur(null);
+    try {
+      const resultat = await verifierOtp(code.trim(), email.trim().toLowerCase());
+      setDonnees(resultat);
+    } catch (ex) {
+      setErreur(
+        ex instanceof ApiError && ex.status === 401
+          ? "Code OTP invalide, expiré ou déjà utilisé. Vérifiez votre email et le code reçu."
+          : "Le service est momentanément indisponible. Réessayez dans un instant.",
+      );
+    } finally {
+      setEnCours(false);
+    }
+  }
+
+  if (donnees) return <PatientResult donnees={donnees} />;
+
+  return (
+    <div className="grid min-h-screen place-items-center bg-navy px-4 py-10">
+      <div className="w-full max-w-sm">
+        <div className="mb-6 text-center">
+          <img src="/logo-aeris.png" alt="AERIS" className="mx-auto w-40 object-contain" />
+          <p className="mt-3 font-mono text-[11px] tracking-[0.18em] text-navy-muted uppercase">
+            Espace patient · accès sécurisé
+          </p>
+        </div>
+
+        <form
+          onSubmit={(e) => void soumettre(e)}
+          className="rounded-lg border border-navy-line bg-card p-6 shadow-raise"
+        >
+          <h1 className="flex items-center gap-2 text-base font-semibold text-foreground">
+            <KeyRound className="size-4 text-ok" />
+            Consulter mes résultats
+          </h1>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Le code à 6 chiffres vous a été envoyé par email après l'analyse de votre dossier.
+          </p>
+
+          <label className="mt-5 block">
+            <span className="label-xs">Adresse email</span>
+            <div className="relative mt-1.5">
+              <Mail className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+              <input
+                type="email"
+                required
+                autoComplete="email"
+                placeholder="vous@exemple.sn"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full rounded-md border border-border bg-background py-2 pr-3 pl-9 text-sm outline-none placeholder:text-muted-foreground/60 focus:border-ok/60"
+              />
+            </div>
+          </label>
+
+          <label className="mt-4 block">
+            <span className="label-xs">Code OTP</span>
+            <input
+              inputMode="numeric"
+              required
+              pattern="[0-9]{6}"
+              maxLength={6}
+              placeholder="000000"
+              value={code}
+              onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+              className="mt-1.5 w-full rounded-md border border-border bg-background px-3 py-2 font-mono text-lg tracking-[0.35em] outline-none placeholder:text-muted-foreground/30 focus:border-ok/60"
+            />
+          </label>
+
+          {erreur && (
+            <p className="mt-4 flex items-start gap-2 rounded-md border border-alert/40 bg-alert-soft/40 p-3 text-xs leading-relaxed text-alert">
+              <ShieldAlert className="mt-0.5 size-3.5 shrink-0" />
+              {erreur}
+            </p>
+          )}
+
+          <button
+            type="submit"
+            disabled={enCours}
+            className={cn(
+              "mt-5 flex w-full items-center justify-center gap-2 rounded-md bg-ok px-4 py-2.5 text-sm font-semibold text-navy transition-opacity",
+              enCours ? "cursor-wait opacity-70" : "hover:opacity-90",
+            )}
+          >
+            {enCours && <Loader2 className="size-4 animate-spin" />}
+            Afficher mes résultats
+          </button>
+
+          <p className="mt-4 text-center font-mono text-[10px] text-muted-foreground">
+            Code à usage unique · expire 15 minutes après envoi
+          </p>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------- Mode clinicien (compte rendu) ------------------- */
+
+function ResultatClinique() {
+  const session = useSession();
+  const navigate = useNavigate();
+
+  // Après hydratation : un utilisateur sans compte, ou non-clinicien, est
+  // redirigé (couvre le chargement direct de l'URL sans passer par la nav).
+  useEffect(() => {
+    if (!sessionHydratee()) return;
+    if (!session) {
+      void navigate({ to: "/login", search: { retro: window.location.pathname } });
+      return;
+    }
+    if (session.personne.role !== "clinicien") {
+      void navigate({ to: pageAccueilPourRole(session.personne.role) });
+    }
+  }, [session, navigate]);
+
   return (
     <AppShell>
       <ResultatContent />

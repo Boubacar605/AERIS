@@ -13,6 +13,9 @@ from app.logique_routage import registre_diagnostics
 from app.routes.metriques import routeur_metriques
 from app.routes.routage import routeur_routage
 from app.routes.sante import routeur_sante
+from app.routes.auth import routeur_auth
+from app.routes.admin import routeur_admin
+from app.routes.acces import routeur_acces
 
 _logger = logging.getLogger("aeris.moteur")
 
@@ -87,6 +90,9 @@ Instrumentator().instrument(app).expose(app)
 app.include_router(routeur_sante)
 app.include_router(routeur_routage, prefix="/routage", tags=["Routage"])
 app.include_router(routeur_metriques, tags=["Metriques"])
+app.include_router(routeur_auth)
+app.include_router(routeur_admin)
+app.include_router(routeur_acces)
 
 
 @app.get("/")

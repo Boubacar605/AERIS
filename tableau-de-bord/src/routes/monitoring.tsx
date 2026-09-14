@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { exigerRole } from "@/lib/authentification";
 import { Activity, Cloud, Cpu, Gauge, Wifi } from "lucide-react";
 import { AppShell, PageHeader } from "@/components/aeris/AppShell";
 import {
@@ -16,6 +17,7 @@ import { formatUptime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/monitoring")({
+  beforeLoad: () => exigerRole("admin"),
   component: MonitoringPage,
   head: () => ({
     meta: [
