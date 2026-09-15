@@ -135,6 +135,9 @@ services:
       - OTP_TTL_MINUTES=${OTP_TTL_MINUTES:-15}
       - SMTP_HOTE=${SMTP_HOTE:-mailhog}
       - SMTP_PORT=${SMTP_PORT:-1025}
+      - SMTP_UTILISATEUR=${SMTP_UTILISATEUR:-}
+      - SMTP_MOT_DE_PASSE=${SMTP_MOT_DE_PASSE:-}
+      - SMTP_EXPEDITEUR=${SMTP_EXPEDITEUR:-aeris@local}
       - URL_TABLEAU_DE_BORD=${TABLEAU_DE_BORD_PUBLIQUE:-http://localhost:${TABLEAU_DE_BORD_PORT:-3000}}
     depends_on:
       service-tuberculose-cloud:
