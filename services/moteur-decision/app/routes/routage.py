@@ -1,6 +1,7 @@
 """Endpoint principal de routage des radiographies vers Edge ou Cloud."""
 
 import hashlib
+import logging
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
@@ -12,10 +13,13 @@ from app.logique_routage.registre_diagnostics import (
     incrementer_compteur,
 )
 from app.logique_routage.selecteur_edge_cloud import decider_destination
-from app.notification import envoyer_notification_resultat
+from app.notification import envoyer_notification_otp
 from app.schemas.schemas_routage import ReponseRoutage
+from app.whatsapp import normaliser_numero
 
 routeur_routage = APIRouter()
+
+_logger = logging.getLogger("aeris.routage")
 
 
 @routeur_routage.post("/analyser", response_model=ReponseRoutage)
@@ -89,17 +93,28 @@ async def router_et_analyser(
         }
     )
 
-    # Notification patient par OTP si code_patient fourni
-    if patient_cible and patient_cible.email:
-        code_otp = await persistance.generer_et_stocker_otp(
-            id_patient=patient_cible.id_patient,
-            id_examen=None,
-            email=patient_cible.email,
+    # Notification patient par OTP si code_patient fourni. Le contact est le
+    # téléphone (canal WhatsApp) s'il existe, sinon l'email ; la destination
+    # enregistrée sur le code est normalisée pour WhatsApp, afin de matcher la
+    # saisie du patient (vérifiée elle aussi sous forme normalisée, acces.py).
+    if patient_cible:
+        destination = (
+            normaliser_numero(patient_cible.telephone)
+            if patient_cible.telephone
+            else patient_cible.email
         )
-        await envoyer_notification_resultat(
-            email_destination=patient_cible.email,
-            code_otp=code_otp,
-            nom_patient=patient_cible.nom_complet,
-        )
+        if destination:
+            code_otp = await persistance.generer_et_stocker_otp(
+                id_patient=patient_cible.id_patient,
+                id_examen=None,
+                destination=destination,
+            )
+            envoye = await envoyer_notification_otp(patient_cible, code_otp)
+            if not envoye["ok"]:
+                _logger.warning(
+                    "Notification OTP echouee (%s) pour le patient %s",
+                    envoye["canal"],
+                    patient_cible.code_patient,
+                )
 
     return resultat

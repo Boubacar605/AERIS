@@ -92,6 +92,7 @@ class Patient(Base):
     annee_naissance: Mapped[int | None] = mapped_column(Integer)
     note: Mapped[str | None] = mapped_column(Text)
     email: Mapped[str | None] = mapped_column(Text, unique=True)
+    telephone: Mapped[str | None] = mapped_column(Text)
     nom_complet: Mapped[str | None] = mapped_column(Text)
     cree_le: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=text("now()"))
 
@@ -542,7 +543,7 @@ async def lister_patients() -> list[dict]:
     async with _sessions() as session:
         resultat = await session.execute(
             text(
-                "SELECT id_patient, code_patient, nom_complet, email, sexe, "
+                "SELECT id_patient, code_patient, nom_complet, email, telephone, sexe, "
                 "       annee_naissance, note, cree_le "
                 "FROM patients ORDER BY id_patient"
             )
@@ -553,10 +554,11 @@ async def lister_patients() -> list[dict]:
                 "code_patient": r[1],
                 "nom_complet": r[2],
                 "email": r[3],
-                "sexe": r[4],
-                "annee_naissance": r[5],
-                "note": r[6],
-                "cree_le": _iso(r[7]),
+                "telephone": r[4],
+                "sexe": r[5],
+                "annee_naissance": r[6],
+                "note": r[7],
+                "cree_le": _iso(r[8]),
             }
             for r in resultat.all()
         ]
@@ -566,6 +568,7 @@ async def creer_patient(
     code_patient: str,
     nom_complet: str | None = None,
     email: str | None = None,
+    telephone: str | None = None,
     sexe: str | None = None,
     annee_naissance: int | None = None,
     note: str | None = None,
@@ -576,6 +579,7 @@ async def creer_patient(
                 code_patient=code_patient,
                 nom_complet=nom_complet,
                 email=email,
+                telephone=telephone,
                 sexe=sexe,
                 annee_naissance=annee_naissance,
                 note=note,
@@ -616,9 +620,14 @@ from app.otp import generer_otp, hacher_otp  # noqa: E402
 async def generer_et_stocker_otp(
     id_patient: int,
     id_examen: int | None,
-    email: str,
+    destination: str,
 ) -> str:
-    """Genere un OTP, le stocke hashé en base, retourne le code en clair."""
+    """Genere un OTP, le stocke hashé en base, retourne le code en clair.
+
+    ``destination`` est le contact qui recevra le code : adresse email OU
+    numero WhatsApp (le champ SQL ``email_destination`` sert de destination
+    generique pour les deux canaux).
+    """
     code = generer_otp(config.otp_longueur)
     code_hash = hacher_otp(code)
     expire_le = datetime.now(timezone.utc) + timedelta(minutes=config.otp_ttl_minutes)
@@ -628,7 +637,7 @@ async def generer_et_stocker_otp(
             otp = CodeOtp(
                 id_patient=id_patient,
                 id_examen=id_examen,
-                email_destination=email,
+                email_destination=destination,
                 code_hash=code_hash,
                 expire_le=expire_le,
             )
@@ -637,9 +646,11 @@ async def generer_et_stocker_otp(
     return code
 
 
-async def verifier_et_consommer_otp(code: str, email: str) -> Patient | None:
+async def verifier_et_consommer_otp(code: str, destination: str) -> Patient | None:
     """Verifie un OTP (non expire, non utilise, tentatives < max).
 
+    ``destination`` est le contact saisi par le patient : email ou numero
+    WhatsApp selon le canal qui a recu le code.
     Retourne le Patient associe si valide, None sinon.
     Le code est consomme (utilise_le mis a jour) en cas de succes.
     """
@@ -653,10 +664,10 @@ async def verifier_et_consommer_otp(code: str, email: str) -> Patient | None:
                 text(
                     "SELECT id_otp, id_patient, code_hash, expire_le, "
                     "       tentatives, utilise_le, email_destination "
-                    "FROM otp_codes WHERE email_destination = :email "
+                    "FROM otp_codes WHERE email_destination = :destination "
                     "ORDER BY id_otp DESC LIMIT 1"
                 ),
-                {"email": email},
+                {"destination": destination},
             )
             ligne = resultat.first()
             if ligne is None:

@@ -51,7 +51,7 @@ def test_acces_resultat_avec_otp_valide_retourne_patient_et_resultats(
 ):
     """OTP correct -> patient + ses resultats (texte seul)."""
 
-    async def _verifier(code: str, email: str):
+    async def _verifier(code: str, destination: str):
         return _patient()
 
     async def _resultats(id_patient: int):
@@ -82,7 +82,7 @@ def test_acces_resultat_otp_invalide_refuse(
 ):
     """OTP invalide, expire ou epuise -> 401 sans detail d'emoi."""
 
-    async def _verifier(code: str, email: str):
+    async def _verifier(code: str, destination: str):
         return None
 
     monkeypatch.setattr(persistance, "verifier_et_consommer_otp", _verifier)
@@ -101,7 +101,7 @@ def test_acces_resultat_est_public_sans_token(
     Aucun en-tete Authorization n'est fourni ; seul le verdict OTP compte.
     """
 
-    async def _verifier(code: str, email: str):
+    async def _verifier(code: str, destination: str):
         return None
 
     monkeypatch.setattr(persistance, "verifier_et_consommer_otp", _verifier)
@@ -110,3 +110,81 @@ def test_acces_resultat_est_public_sans_token(
         "/acces-resultat", json={"code_otp": "999999", "email": "x@example.org"}
     )
     assert reponse.status_code == 401
+
+
+# ---------------------------------------------------------------------------
+# Canal WhatsApp : destination OTP normalisée
+# ---------------------------------------------------------------------------
+
+def test_renvoyer_otp_whatsapp_stoque_la_destination_normalisee(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch, admin_token: str
+):
+    """Un patient à téléphone reçoit son OTP avec une destination normalisée.
+
+    La vérification (acces.py) normalise la saisie du patient ; la destination
+    stockée doit donc l'être aussi, sinon un numéro saisi au format local ne
+    matcherait jamais le code (régression du flux WhatsApp).
+    """
+    patient = types.SimpleNamespace(
+        id_patient=7,
+        code_patient="AERIS-2026-0007",
+        nom_complet="Patient WhatsApp",
+        telephone="77 123 45 67",
+        email=None,
+    )
+
+    destinations: list[str] = []
+
+    async def _obtenir(id_patient: int):
+        return patient
+
+    async def _stocker(id_patient: int, id_examen: int | None, destination: str):
+        destinations.append(destination)
+        return "123456"
+
+    monkeypatch.setattr(persistance, "obtenir_patient_par_id", _obtenir)
+    monkeypatch.setattr(persistance, "generer_et_stocker_otp", _stocker)
+
+    reponse = client.post(
+        "/admin/patients/7/renvoyer-otp",
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert reponse.status_code == 200
+    assert destinations == ["221771234567"]
+    assert reponse.json()["canal"] == "whatsapp"
+    # L'admin voit le numéro brut, plus lisible que sa forme normalisée.
+    assert reponse.json()["contact"] == "77 123 45 67"
+
+
+def test_renvoyer_otp_email_garde_la_destination_brute(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch, admin_token: str
+):
+    """Sans téléphone, la destination reste l'email tel qu'enregistré."""
+    patient = types.SimpleNamespace(
+        id_patient=8,
+        code_patient="AERIS-2026-0008",
+        nom_complet="Patient Email",
+        telephone=None,
+        email="patient@example.org",
+    )
+
+    destinations: list[str] = []
+
+    async def _obtenir(id_patient: int):
+        return patient
+
+    async def _stocker(id_patient: int, id_examen: int | None, destination: str):
+        destinations.append(destination)
+        return "123456"
+
+    monkeypatch.setattr(persistance, "obtenir_patient_par_id", _obtenir)
+    monkeypatch.setattr(persistance, "generer_et_stocker_otp", _stocker)
+
+    reponse = client.post(
+        "/admin/patients/8/renvoyer-otp",
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert reponse.status_code == 200
+    assert destinations == ["patient@example.org"]
+    assert reponse.json()["canal"] == "email"
+    assert reponse.json()["contact"] == "patient@example.org"

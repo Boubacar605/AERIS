@@ -138,6 +138,9 @@ services:
       - SMTP_UTILISATEUR=${SMTP_UTILISATEUR:-}
       - SMTP_MOT_DE_PASSE=${SMTP_MOT_DE_PASSE:-}
       - SMTP_EXPEDITEUR=${SMTP_EXPEDITEUR:-aeris@local}
+      # Canal WhatsApp via le relais AERIS (Baileys) — vide = simulation log
+      - WHATSAPP_URL_RELAY=${WHATSAPP_URL_RELAY:-http://relay-whatsapp:3500}
+      - WHATSAPP_PREFIXE_PAYS=${WHATSAPP_PREFIXE_PAYS:-221}
       - URL_TABLEAU_DE_BORD=${TABLEAU_DE_BORD_PUBLIQUE:-http://localhost:${TABLEAU_DE_BORD_PORT:-3000}}
     depends_on:
       service-tuberculose-cloud:
@@ -163,6 +166,22 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+    profiles:
+      - cloud
+      - edge
+      - complet
+    networks:
+      - aeris-reseau
+
+  # ===== RELAIS WHATSAPP (Baileys) =====
+  relay-whatsapp:
+    build: ./services/relay-whatsapp
+    container_name: aeris-relay-whatsapp
+    restart: unless-stopped
+    ports:
+      - "${RELAY_WHATSAPP_PORT:-3500}:3500"
+    volumes:
+      - aeris-whatsapp-session:/app/auth_info
     profiles:
       - cloud
       - edge
@@ -247,6 +266,7 @@ services:
 volumes:
   prometheus-donnees:
   aeris-postgres-donnees:
+  aeris-whatsapp-session:
 
 networks:
   aeris-reseau:

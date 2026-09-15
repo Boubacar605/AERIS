@@ -5,7 +5,8 @@ from pydantic import BaseModel
 
 from app import persistance
 from app.authentification import exiger_role, hacher_mot_de_passe
-from app.notification import envoyer_notification_resultat
+from app.notification import envoyer_notification_otp
+from app.whatsapp import normaliser_numero
 
 routeur_admin = APIRouter(prefix="/admin", tags=["Administration"])
 
@@ -92,6 +93,7 @@ class CreerPatientRequete(BaseModel):
     code_patient: str
     nom_complet: str | None = None
     email: str | None = None
+    telephone: str | None = None
     sexe: str | None = None
     annee_naissance: int | None = None
     note: str | None = None
@@ -100,6 +102,7 @@ class CreerPatientRequete(BaseModel):
 class ModifierPatientRequete(BaseModel):
     nom_complet: str | None = None
     email: str | None = None
+    telephone: str | None = None
     sexe: str | None = None
     annee_naissance: int | None = None
     note: str | None = None
@@ -123,6 +126,7 @@ async def creer_patient(
         code_patient=requete.code_patient,
         nom_complet=requete.nom_complet,
         email=requete.email,
+        telephone=requete.telephone,
         sexe=requete.sexe,
         annee_naissance=requete.annee_naissance,
         note=requete.note,
@@ -132,6 +136,7 @@ async def creer_patient(
         "code_patient": patient.code_patient,
         "nom_complet": patient.nom_complet,
         "email": patient.email,
+        "telephone": patient.telephone,
     }
 
 
@@ -151,21 +156,33 @@ async def renvoyer_otp(
     id_patient: int,
     _=Depends(exiger_role("admin")),
 ) -> dict:
-    """Genere un nouvel OTP et l'envoie par email au patient."""
+    """Genere un nouvel OTP et l'envoie au patient (WhatsApp ou email)."""
     patient = await persistance.obtenir_patient_par_id(id_patient)
     if not patient:
         raise HTTPException(status_code=404, detail="Patient introuvable")
-    if not patient.email:
-        raise HTTPException(status_code=400, detail="Patient sans email — impossible d'envoyer l'OTP")
+
+    # Le contact est le téléphone (canal WhatsApp) s'il existe, sinon l'email.
+    contact = patient.telephone or patient.email
+    if not contact:
+        raise HTTPException(
+            status_code=400,
+            detail="Patient sans telephone ni email — impossible d'envoyer l'OTP",
+        )
+
+    # L'OTP est stocké avec le contact sous sa forme normalisée (le code est
+    # vérifié contre la saisie du patient, elle-même normalisée côté acces.py).
+    # Le numéro brut reste affiché à l'admin via `contact`.
+    destination = normaliser_numero(patient.telephone) if patient.telephone else patient.email
+    destination = destination or contact
 
     code = await persistance.generer_et_stocker_otp(
         id_patient=patient.id_patient,
         id_examen=None,
-        email=patient.email,
+        destination=destination,
     )
-    await envoyer_notification_resultat(
-        email_destination=patient.email,
-        code_otp=code,
-        nom_patient=patient.nom_complet,
-    )
-    return {"statut": "otp_envoye", "email": patient.email}
+    envoye = await envoyer_notification_otp(patient, code)
+    return {
+        "statut": "otp_envoye" if envoye["ok"] else "echec_envoi",
+        "canal": envoye["canal"],
+        "contact": contact,
+    }

@@ -330,6 +330,7 @@ export type PatientAdmin = {
   code_patient: string;
   nom_complet: string | null;
   email: string | null;
+  telephone: string | null;
   sexe: string | null;
   annee_naissance: number | null;
   note: string | null;
@@ -340,6 +341,7 @@ export type CreerPatientRequete = {
   code_patient: string;
   nom_complet?: string | null;
   email?: string | null;
+  telephone?: string | null;
   sexe?: string | null;
   annee_naissance?: number | null;
   note?: string | null;
@@ -386,7 +388,9 @@ export async function creerPatient(requete: CreerPatientRequete): Promise<Patien
   });
 }
 
-export async function renvoyerOtp(idPatient: number): Promise<{ statut: string; email: string }> {
+export async function renvoyerOtp(
+  idPatient: number,
+): Promise<{ statut: string; canal: string; contact?: string }> {
   return fetchAPI(`/admin/patients/${idPatient}/renvoyer-otp`, { method: "POST" });
 }
 
@@ -412,11 +416,22 @@ export type ReponseAccesResultat = {
 };
 
 /** POST /acces-resultat — OTP 6 chiffres + email -> dossier patient (texte seul). */
-export async function verifierOtp(codeOtp: string, email: string): Promise<ReponseAccesResultat> {
+/**
+ * Vérifie un OTP via l'email OU le numéro WhatsApp saisi par le patient.
+ * Un seul des deux contacts est requis (celui qui a reçu le code).
+ */
+export async function verifierOtp(
+  codeOtp: string,
+  contact: { email?: string; telephone?: string },
+): Promise<ReponseAccesResultat> {
   const data = await fetchAPI<ReponseAccesResultat>("/acces-resultat", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ code_otp: codeOtp, email }),
+    body: JSON.stringify({
+      code_otp: codeOtp,
+      email: contact.email ?? null,
+      telephone: contact.telephone ?? null,
+    }),
   });
   return data;
 }

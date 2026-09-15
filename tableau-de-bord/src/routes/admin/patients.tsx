@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { Mail, Paperclip, Plus, RefreshCw, Send, UserPlus } from "lucide-react";
+import { Mail, MessageCircle, Paperclip, Plus, RefreshCw, Send, UserPlus } from "lucide-react";
 import { useEffect, useState, type FormEvent } from "react";
 import { Panel, Tag } from "@/components/aeris/primitives";
 import { Button } from "@/components/ui/button";
@@ -91,7 +91,7 @@ function PatientsPage() {
               <TableRow>
                 <TableHead>Code</TableHead>
                 <TableHead>Nom complet</TableHead>
-                <TableHead>Email</TableHead>
+                <TableHead>Contact</TableHead>
                 <TableHead>Sexe</TableHead>
                 <TableHead className="text-right">Notification OTP</TableHead>
               </TableRow>
@@ -121,12 +121,15 @@ function PatientRow({ patient: p }: { patient: PatientAdmin }) {
   const [enCours, setEnCours] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
+  const contactDisponible = Boolean(p.email || p.telephone);
+
   const envoyer = async () => {
     setEnCours(true);
     setMessage(null);
     try {
       const rep = await renvoyerOtp(p.id_patient);
-      setMessage(`OTP envoyé à ${rep.email}`);
+      const canal = rep.canal === "whatsapp" ? "WhatsApp" : "email";
+      setMessage(`OTP envoyé par ${canal} à ${rep.contact ?? ""}`);
     } catch (ex) {
       setMessage(ex instanceof ApiError ? `Erreur : ${ex.status}` : "Envoi impossible");
     } finally {
@@ -139,13 +142,18 @@ function PatientRow({ patient: p }: { patient: PatientAdmin }) {
       <TableCell className="font-mono text-xs font-semibold">{p.code_patient}</TableCell>
       <TableCell>{p.nom_complet ?? "—"}</TableCell>
       <TableCell className="font-mono text-xs">
-        {p.email ? (
+        {p.telephone ? (
+          <span className="inline-flex items-center gap-1.5">
+            <MessageCircle className="size-3 text-muted-foreground" />
+            {p.telephone}
+          </span>
+        ) : p.email ? (
           <span className="inline-flex items-center gap-1.5">
             <Mail className="size-3 text-muted-foreground" />
             {p.email}
           </span>
         ) : (
-          <Tag tone="alert">sans email</Tag>
+          <Tag tone="alert">aucun contact</Tag>
         )}
       </TableCell>
       <TableCell>{p.sexe ?? "—"}</TableCell>
@@ -155,8 +163,12 @@ function PatientRow({ patient: p }: { patient: PatientAdmin }) {
           <Button
             variant="outline"
             size="sm"
-            disabled={enCours || !p.email}
-            title={p.email ? "Générer et envoyer un nouvel OTP" : "Patient sans email"}
+            disabled={enCours || !contactDisponible}
+            title={
+              contactDisponible
+                ? "Générer et envoyer un nouvel OTP (WhatsApp si téléphone, sinon email)"
+                : "Patient sans téléphone ni email"
+            }
             onClick={() => void envoyer()}
           >
             <Send className="size-3.5" />
@@ -181,6 +193,7 @@ function CreerPatientDialog({
     code_patient: "",
     nom_complet: "",
     email: "",
+    telephone: "",
     sexe: "",
     annee_naissance: "",
   });
@@ -199,10 +212,18 @@ function CreerPatientDialog({
         code_patient: form.code_patient.trim().toUpperCase(),
         nom_complet: form.nom_complet.trim() || null,
         email: form.email.trim().toLowerCase() || null,
+        telephone: form.telephone.trim() || null,
         sexe: form.sexe.trim().toUpperCase() || null,
         annee_naissance: form.annee_naissance ? Number(form.annee_naissance) : null,
       });
-      setForm({ code_patient: "", nom_complet: "", email: "", sexe: "", annee_naissance: "" });
+      setForm({
+        code_patient: "",
+        nom_complet: "",
+        email: "",
+        telephone: "",
+        sexe: "",
+        annee_naissance: "",
+      });
       onCree();
     } catch (ex) {
       setErreur(
@@ -225,7 +246,8 @@ function CreerPatientDialog({
               Ajouter un patient
             </DialogTitle>
             <DialogDescription>
-              Le code patient permet au clinicien de rattacher une analyse ; l'email reçoit l'OTP.
+              Le code patient permet au clinicien de rattacher une analyse ; l'email ou le
+              téléphone WhatsApp reçoit l'OTP.
             </DialogDescription>
           </DialogHeader>
 
@@ -260,6 +282,16 @@ function CreerPatientDialog({
                 value={form.email}
                 placeholder="patient@exemple.sn"
                 onChange={(e) => changer("email", e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="telephone">Téléphone WhatsApp (pour l'OTP)</Label>
+              <Input
+                id="telephone"
+                type="tel"
+                value={form.telephone}
+                placeholder="77 123 45 67"
+                onChange={(e) => changer("telephone", e.target.value.replace(/[^\d\s+]/g, ""))}
               />
             </div>
             <div className="grid grid-cols-2 gap-3">

@@ -57,6 +57,14 @@ class ConfigMoteurDecision(BaseSettings):
     smtp_mot_de_passe: str = ""
     smtp_expediteur: str = "aeris@local"
 
+    # WhatsApp via le relais AERIS (Baileys, session WhatsApp Web). URL vide
+    # = fallback log simulé (même principe que l'email sans SMTP). L'URL
+    # réelle (http://relay-whatsapp:3500) est injectée par docker-compose.
+    whatsapp_url_relay: str = ""
+    # Préfixe téléphonique international appliqué aux numéros sans +/préfixe
+    # (ex. "77 123 45 67" -> "221771234567"). Vide = numéro utilisé tel quel.
+    whatsapp_prefixe_pays: str = "221"
+
     # URL du tableau de bord (pour construire le lien OTP dans les emails)
     url_tableau_de_bord: str = "http://localhost:3000"
 

@@ -3,54 +3,20 @@
 En dev/test (SMTP_HOTE vide), le contenu de l'email est simplement logge
 dans la console Docker pour faciliter le debug sans service SMTP externe.
 
-Supporte deux modes d'envoi :
-  - SMTP classique (aiosmtplib) : mode par defaut, SMTP_HOTE/PORT/UTILISATEUR
-  - API Brevo : active automatiquement si la cle commence par 'xkeysib-'
-    (cle API) — utilise httpx + endpoint transactional Brevo.
+Utilise SMTP classique (aiosmtplib) pour l'envoi via Gmail ou tout autre
+serveur SMTP.  L'avatar de l'expediteur s'affiche dans Gmail car le domaine
+n'est pas reecrit.
 """
 
 import logging
 from email.message import EmailMessage
 
 import aiosmtplib
-import httpx
 
 from app.config import config
+from app.whatsapp import envoyer_otp_whatsapp
 
 _logger = logging.getLogger("aeris.notification")
-
-_BREVO_API_URL = "https://api.brevo.com/v3/smtp/email"
-
-
-def _est_cle_brevo_api(cle: str | None) -> bool:
-    """Renvoie True si la cle est une cle API Brevo (xkeysib-…)."""
-    return bool(cle and cle.startswith("xkeysib-"))
-
-
-async def _envoyer_via_brevo_api(
-    email_destination: str,
-    corps: str,
-    code_otp: str,
-) -> bool:
-    """Envoie un email via l'API transactionnelle Brevo (httpx async)."""
-    payload = {
-        "sender": {
-            "name": "AERIS EDGE-CLOUD AI",
-            "email": config.smtp_utilisateur or config.smtp_expediteur,
-        },
-        "to": [{"email": email_destination}],
-        "subject": "AERIS — Vos resultats radiologiques",
-        "textContent": corps,
-    }
-    headers = {
-        "api-key": config.smtp_mot_de_passe,
-        "Content-Type": "application/json",
-    }
-    async with httpx.AsyncClient() as client:
-        resp = await client.post(_BREVO_API_URL, json=payload, headers=headers, timeout=30)
-        resp.raise_for_status()
-    _logger.info("Email envoye via API Brevo a %s", email_destination)
-    return True
 
 
 async def envoyer_notification_resultat(
@@ -88,13 +54,8 @@ async def envoyer_notification_resultat(
         return True
 
     try:
-        # Cle API Brevo (xkeysib-…) → envoi via l'API transactionnelle
-        if _est_cle_brevo_api(config.smtp_mot_de_passe):
-            return await _envoyer_via_brevo_api(email_destination, corps, code_otp)
-
-        # Sinon → SMTP classique (aiosmtplib)
         message = EmailMessage()
-        message["From"] = config.smtp_expediteur
+        message["From"] = f"AERIS EDGE-CLOUD AI <{config.smtp_expediteur}>"
         message["To"] = email_destination
         message["Subject"] = "AERIS — Vos resultats radiologiques"
         message.set_content(corps)
@@ -105,10 +66,43 @@ async def envoyer_notification_resultat(
             port=config.smtp_port,
             username=config.smtp_utilisateur or None,
             password=config.smtp_mot_de_passe or None,
-            start_tls=bool(config.smtp_utilisateur),
+            start_tls=True,
         )
         _logger.info("Email envoye via SMTP a %s", email_destination)
         return True
     except Exception as exc:  # noqa: BLE001
         _logger.error("Echec envoi email a %s : %s", email_destination, exc)
         return False
+
+
+async def envoyer_notification_otp(
+    patient,
+    code_otp: str,
+) -> dict:
+    """Adresse l'OTP au patient sur le canal le plus adapte.
+
+    Choix du canal :
+    1. WhatsApp si le patient a un telephone (le relais AERIS Baileys est
+       le canal cible pour les patients sans email) ;
+    2. sinon Email si le patient a une adresse email.
+
+    Retourne ``{"canal": "whatsapp"|"email"|"aucun", "ok": bool}``.
+    """
+    if getattr(patient, "telephone", None):
+        ok = await envoyer_otp_whatsapp(
+            patient.telephone,
+            code_otp,
+            nom_patient=patient.nom_complet,
+        )
+        return {"canal": "whatsapp", "ok": ok}
+
+    if getattr(patient, "email", None):
+        ok = await envoyer_notification_resultat(
+            email_destination=patient.email,
+            code_otp=code_otp,
+            nom_patient=patient.nom_complet,
+        )
+        return {"canal": "email", "ok": ok}
+
+    _logger.warning("Patient %s sans telephone ni email — OTP non envoye", patient.code_patient)
+    return {"canal": "aucun", "ok": False}

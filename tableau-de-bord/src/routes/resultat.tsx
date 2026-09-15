@@ -6,6 +6,7 @@ import {
   KeyRound,
   Loader2,
   Mail,
+  MessageCircle,
   ScanLine,
   ShieldAlert,
   ThumbsDown,
@@ -69,7 +70,8 @@ function ResultatPage() {
 
 function PatientOtpHub() {
   const { otp } = Route.useSearch();
-  const [email, setEmail] = useState("");
+  const [canal, setCanal] = useState<"email" | "whatsapp">("email");
+  const [contact, setContact] = useState("");
   const [code, setCode] = useState(otp ?? "");
   const [enCours, setEnCours] = useState(false);
   const [erreur, setErreur] = useState<string | null>(null);
@@ -80,12 +82,18 @@ function PatientOtpHub() {
     setEnCours(true);
     setErreur(null);
     try {
-      const resultat = await verifierOtp(code.trim(), email.trim().toLowerCase());
+      const contactPayload: { email?: string; telephone?: string } = {};
+      if (canal === "email") {
+        contactPayload.email = contact.trim().toLowerCase();
+      } else {
+        contactPayload.telephone = contact.trim();
+      }
+      const resultat = await verifierOtp(code.trim(), contactPayload);
       setDonnees(resultat);
     } catch (ex) {
       setErreur(
         ex instanceof ApiError && ex.status === 401
-          ? "Code OTP invalide, expiré ou déjà utilisé. Vérifiez votre email et le code reçu."
+          ? "Code OTP invalide, expiré ou déjà utilisé. Vérifiez le contact et le code reçu."
           : "Le service est momentanément indisponible. Réessayez dans un instant.",
       );
     } finally {
@@ -114,20 +122,54 @@ function PatientOtpHub() {
             Consulter mes résultats
           </h1>
           <p className="mt-1 text-xs text-muted-foreground">
-            Le code à 6 chiffres vous a été envoyé par email après l'analyse de votre dossier.
+            Le code à 6 chiffres vous a été envoyé par email ou WhatsApp après l'analyse de votre
+            dossier.
           </p>
 
-          <label className="mt-5 block">
-            <span className="label-xs">Adresse email</span>
+          <div className="mt-5 grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => setCanal("email")}
+              className={cn(
+                "flex items-center justify-center gap-1.5 rounded-md border px-3 py-2 font-mono text-[11px] font-bold tracking-widest uppercase transition-colors",
+                canal === "email"
+                  ? "border-ok/50 bg-ok-soft text-ok"
+                  : "border-border bg-card text-muted-foreground hover:text-foreground",
+              )}
+            >
+              <Mail className="size-3.5" />
+              Email
+            </button>
+            <button
+              type="button"
+              onClick={() => setCanal("whatsapp")}
+              className={cn(
+                "flex items-center justify-center gap-1.5 rounded-md border px-3 py-2 font-mono text-[11px] font-bold tracking-widest uppercase transition-colors",
+                canal === "whatsapp"
+                  ? "border-ok/50 bg-ok-soft text-ok"
+                  : "border-border bg-card text-muted-foreground hover:text-foreground",
+              )}
+            >
+              <MessageCircle className="size-3.5" />
+              WhatsApp
+            </button>
+          </div>
+
+          <label className="mt-4 block">
+            <span className="label-xs">{canal === "email" ? "Adresse email" : "Numéro WhatsApp"}</span>
             <div className="relative mt-1.5">
-              <Mail className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+              {canal === "email" ? (
+                <Mail className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+              ) : (
+                <MessageCircle className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+              )}
               <input
-                type="email"
+                type={canal === "email" ? "email" : "tel"}
                 required
-                autoComplete="email"
-                placeholder="vous@exemple.sn"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                autoComplete={canal === "email" ? "email" : "tel"}
+                placeholder={canal === "email" ? "vous@exemple.sn" : "77 123 45 67"}
+                value={contact}
+                onChange={(e) => setContact(e.target.value)}
                 className="w-full rounded-md border border-border bg-background py-2 pr-3 pl-9 text-sm outline-none placeholder:text-muted-foreground/60 focus:border-ok/60"
               />
             </div>
