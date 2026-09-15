@@ -511,7 +511,12 @@ function Landing() {
 
       {/* HERO */}
       <section className="relative overflow-hidden bg-navy text-navy-foreground">
-        <div className="grid-surface absolute inset-0 opacity-[0.06]" aria-hidden />
+        <div
+          className="absolute inset-0 bg-cover bg-center bg-no-repeat"
+          style={{ backgroundImage: "url(/landing-page.png)" }}
+          aria-hidden
+        />
+        <div className="absolute inset-0 bg-navy/70" aria-hidden />
         <div className="relative mx-auto grid max-w-6xl gap-10 px-5 py-16 lg:grid-cols-[1.05fr_0.95fr] lg:items-center lg:py-24">
           <div>
             <Reveal>
