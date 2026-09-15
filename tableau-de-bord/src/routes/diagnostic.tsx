@@ -19,7 +19,7 @@ import {
 import { AppShell, PageHeader, useConnexion } from "@/components/aeris/AppShell";
 import { Meter, Panel, StatusDot, Tag } from "@/components/aeris/primitives";
 import { SyntheseClinique } from "@/components/aeris/SyntheseClinique";
-import { useEtatSysteme } from "@/hooks/use-api";
+import { useHistoriqueLive } from "@/hooks/use-api";
 import {
   uploadImage,
   type EvenementEscalade,
@@ -326,7 +326,10 @@ function DiagnosticPage() {
 
 function DiagnosticContent() {
   const { connecte } = useConnexion();
-  const { decision: decisionTempsReel } = useEtatSysteme(5000);
+  // La répartition Edge/Cloud provient de /historique (lisible par clinicien et
+  // admin) et non de /etat-systeme (réservé à l'admin) : le donut reste alimenté
+  // pour les deux rôles. Source identique : registre_diagnostics.statistiques().
+  const { statistiques: statsHistorique } = useHistoriqueLive(5000);
   const [mode, setMode] = useState<ModeRoutage>("auto");
   const [contexte, setContexte] = useState<ContexteMode>("auto");
   const [codePatient, setCodePatient] = useState("");
@@ -692,12 +695,10 @@ function DiagnosticContent() {
                   </div>
                 ))}
               </dl>
-              <DonutRepartition requetes={decisionTempsReel?.requetes ?? null} />
+              <DonutRepartition requetes={statsHistorique.counts} />
               <p className="mt-auto flex items-baseline gap-2.5 border-t border-border/60 pt-3">
                 {(() => {
-                  const totalRequetes =
-                    (decisionTempsReel?.requetes?.edge ?? 0) +
-                    (decisionTempsReel?.requetes?.cloud ?? 0);
+                  const totalRequetes = statsHistorique.counts.edge + statsHistorique.counts.cloud;
                   if (totalRequetes > 0) {
                     return (
                       <>
