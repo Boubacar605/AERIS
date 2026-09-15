@@ -68,91 +68,122 @@ function LoginPage() {
   }
 
   return (
-    <div className="grid min-h-screen place-items-center bg-navy px-4 py-10">
-      <div className="w-full max-w-sm">
-        <div className="mb-6 text-center">
-          <img src="/logo-aeris.png" alt="AERIS" className="mx-auto w-40 object-contain" />
-          <p className="mt-3 font-mono text-[11px] tracking-[0.18em] text-navy-muted uppercase">
-            Accès restreint · prototype
+    <div className="flex min-h-screen">
+      {/* ---- Panneau gauche : image + overlay navy + courbe organique ---- */}
+      <div className="relative hidden w-[60%] lg:block">
+        <img
+          src="/landing-page.png"
+          alt=""
+          className="absolute inset-0 h-full w-full object-cover"
+        />
+        <div className="absolute inset-0 bg-navy/80" />
+
+        {/* Courbe organique blanche séparatrice — se fond dans le panneau droit */}
+        <svg
+          className="absolute inset-y-0 right-0 h-full w-[250px]"
+          viewBox="0 0 250 1000"
+          preserveAspectRatio="none"
+          aria-hidden
+        >
+          <path
+            d="M250 0V1000H130C100 780 30 630 30 500S100 220 130 0Z"
+            fill="white"
+          />
+        </svg>
+
+        {/* Branding superposé à l'image */}
+        <div className="relative z-10 flex h-full flex-col items-center justify-center p-12">
+          <img src="/logo-aeris.png" alt="AERIS" className="w-48 object-contain" />
+          <p className="mt-4 max-w-xs text-center text-sm leading-relaxed text-white/70">
+            Radiologie intelligente au Sénégal — triage assisté par IA en zones à faible
+            connectivité.
           </p>
         </div>
+      </div>
 
-        <form
-          onSubmit={(e) => void soumettre(e)}
-          className="rounded-lg border border-navy-line bg-card p-6 shadow-raise"
-        >
-          <h1 className="text-base font-semibold text-foreground">Connexion</h1>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Compte Administrateur ou Clinicien — créé par l'administrateur.
+      {/* ---- Panneau droit : formulaire de connexion ---- */}
+      <div className="flex w-full items-center justify-center bg-white px-6 py-10 lg:w-[40%]">
+        <div className="w-full max-w-md">
+          {/* Logo mobile (masqué sur desktop) */}
+          <div className="mb-8 text-center lg:hidden">
+            <img src="/logo-aeris.png" alt="AERIS" className="mx-auto w-32 object-contain" />
+          </div>
+
+          <h1 className="text-center text-2xl font-bold tracking-tight text-foreground">
+            Bienvenue
+          </h1>
+          <p className="mt-1 text-center text-sm text-muted-foreground">
+            Connectez-vous pour accéder à votre compte
           </p>
 
-          <label className="mt-5 block">
-            <span className="label-xs">Email</span>
-            <div className="relative mt-1.5">
-              <Mail className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-              <input
-                type="email"
-                required
-                autoComplete="username"
-                placeholder="prenom.nom@exemple.sn"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full rounded-md border border-border bg-background py-2 pr-3 pl-9 text-sm outline-none placeholder:text-muted-foreground/60 focus:border-ok/60"
-              />
-            </div>
-          </label>
+          <form onSubmit={(e) => void soumettre(e)} className="mt-8 space-y-5">
+            <label className="block">
+              <span className="label-xs">Email</span>
+              <div className="relative mt-2">
+                <Mail className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+                <input
+                  type="email"
+                  required
+                  autoComplete="username"
+                  placeholder="prenom.nom@exemple.sn"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="w-full rounded-lg border border-border bg-card py-3 pr-3 pl-10 text-sm outline-none placeholder:text-muted-foreground/50 focus:border-ok/60 focus:ring-2 focus:ring-ok/20"
+                />
+              </div>
+            </label>
 
-          <label className="mt-4 block">
-            <span className="label-xs">Mot de passe</span>
-            <div className="relative mt-1.5">
-              <Lock className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-              <input
-                type={visible ? "text" : "password"}
-                required
-                autoComplete="current-password"
-                placeholder="••••••••"
-                value={motDePasse}
-                onChange={(e) => setMotDePasse(e.target.value)}
-                className="w-full rounded-md border border-border bg-background py-2 pr-10 pl-9 text-sm outline-none placeholder:text-muted-foreground/60 focus:border-ok/60"
-              />
-              <button
-                type="button"
-                onClick={() => setVisible((v) => !v)}
-                aria-label={visible ? "Masquer le mot de passe" : "Afficher le mot de passe"}
-                className="absolute top-1/2 right-2.5 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground"
-              >
-                {visible ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
-              </button>
-            </div>
-          </label>
+            <label className="block">
+              <span className="label-xs">Mot de passe</span>
+              <div className="relative mt-2">
+                <Lock className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+                <input
+                  type={visible ? "text" : "password"}
+                  required
+                  autoComplete="current-password"
+                  placeholder="••••••••"
+                  value={motDePasse}
+                  onChange={(e) => setMotDePasse(e.target.value)}
+                  className="w-full rounded-lg border border-border bg-card py-3 pr-10 pl-10 text-sm outline-none placeholder:text-muted-foreground/50 focus:border-ok/60 focus:ring-2 focus:ring-ok/20"
+                />
+                <button
+                  type="button"
+                  onClick={() => setVisible((v) => !v)}
+                  aria-label={visible ? "Masquer le mot de passe" : "Afficher le mot de passe"}
+                  className="absolute top-1/2 right-3 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground"
+                >
+                  {visible ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                </button>
+              </div>
+            </label>
 
-          {erreur && (
-            <p className="mt-4 flex items-start gap-2 rounded-md border border-alert/40 bg-alert-soft/40 p-3 text-xs leading-relaxed text-alert">
-              <AlertCircle className="mt-0.5 size-3.5 shrink-0" />
-              {erreur}
-            </p>
-          )}
-
-          <button
-            type="submit"
-            disabled={ok}
-            className={cn(
-              "mt-5 flex w-full items-center justify-center gap-2 rounded-md bg-ok px-4 py-2.5 text-sm font-semibold text-navy transition-opacity",
-              ok ? "cursor-wait opacity-70" : "hover:opacity-90",
+            {erreur && (
+              <p className="flex items-start gap-2 rounded-lg border border-alert/40 bg-alert-soft/40 p-3 text-xs leading-relaxed text-alert">
+                <AlertCircle className="mt-0.5 size-3.5 shrink-0" />
+                {erreur}
+              </p>
             )}
-          >
-            {ok && <Loader2 className="size-4 animate-spin" />}
-            Se connecter
-          </button>
 
-          <p className="mt-4 text-center font-mono text-[10px] text-muted-foreground">
+            <button
+              type="submit"
+              disabled={ok}
+              className={cn(
+                "flex w-full items-center justify-center gap-2 rounded-lg bg-ok px-4 py-3 text-sm font-semibold text-white transition-opacity",
+                ok ? "cursor-wait opacity-70" : "hover:opacity-90",
+              )}
+            >
+              {ok && <Loader2 className="size-4 animate-spin" />}
+              Se connecter
+            </button>
+          </form>
+
+          <p className="mt-5 text-center text-[11px] text-muted-foreground">
             Patient ? Vos résultats arrivent par email avec un code OTP.
           </p>
-        </form>
-
-        <p className="mt-6 text-center font-mono text-[10px] leading-relaxed text-navy-muted">
-          Prototype de recherche · Master 2 SI · UADB · 2025-2026
-        </p>
+          <p className="mt-4 text-center font-mono text-[10px] text-muted-foreground/70">
+            Prototype de recherche · Master 2 SI · UADB · 2025-2026
+          </p>
+        </div>
       </div>
     </div>
   );
