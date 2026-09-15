@@ -22,11 +22,13 @@ import hashlib
 import logging
 import secrets
 from collections import deque
+from datetime import date as date_naissance
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import (
     BigInteger,
     Boolean,
+    Date,
     DateTime,
     Enum as SqlEnum,
     Float,
@@ -46,6 +48,7 @@ from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 from app.config import config
+from app.whatsapp import normaliser_numero
 
 _logger = logging.getLogger("aeris.persistance")
 
@@ -90,6 +93,13 @@ class Patient(Base):
     code_patient: Mapped[str] = mapped_column(String, unique=True)
     sexe: Mapped[str | None] = mapped_column(String(1))
     annee_naissance: Mapped[int | None] = mapped_column(Integer)
+    # En-tête patient (migration 0004) : nom et prénom séparés, date de
+    # naissance ; nom_complet reste la forme d'affichage prenom + nom.
+    nom: Mapped[str] = mapped_column(Text, default="")
+    prenom: Mapped[str] = mapped_column(Text, default="")
+    date_naissance: Mapped[date_naissance | None] = mapped_column(
+        Date
+    )
     note: Mapped[str | None] = mapped_column(Text)
     email: Mapped[str | None] = mapped_column(Text, unique=True)
     telephone: Mapped[str | None] = mapped_column(Text)
@@ -544,7 +554,7 @@ async def lister_patients() -> list[dict]:
         resultat = await session.execute(
             text(
                 "SELECT id_patient, code_patient, nom_complet, email, telephone, sexe, "
-                "       annee_naissance, note, cree_le "
+                "       annee_naissance, note, cree_le, nom, prenom, date_naissance "
                 "FROM patients ORDER BY id_patient"
             )
         )
@@ -559,30 +569,49 @@ async def lister_patients() -> list[dict]:
                 "annee_naissance": r[6],
                 "note": r[7],
                 "cree_le": _iso(r[8]),
+                "nom": r[9],
+                "prenom": r[10],
+                "date_naissance": (
+                    r[11].isoformat() if r[11] is not None else None
+                ),
             }
             for r in resultat.all()
         ]
 
 
 async def creer_patient(
-    code_patient: str,
+    code_patient: str | None = None,
     nom_complet: str | None = None,
     email: str | None = None,
     telephone: str | None = None,
     sexe: str | None = None,
     annee_naissance: int | None = None,
     note: str | None = None,
+    nom: str | None = None,
+    prenom: str | None = None,
+    date_naissance: date_naissance | None = None,
 ) -> Patient:
+    """Cree un patient. Le code AER-AAAA-NNNN est genere si absent, le
+    telephone stocke sous sa forme normalisee (index unique, dedoublonnage),
+    et nom_complet reconstruit a partir de prenom + nom si fournis."""
+    code = code_patient or await generer_code_patient()
+    numero = normaliser_numero(telephone) if telephone else None
+    nom_complet_final = nom_complet or " ".join(
+        part for part in (prenom or None, nom or None) if part
+    )
     async with _sessions() as session:
         async with session.begin():
             patient = Patient(
-                code_patient=code_patient,
-                nom_complet=nom_complet,
+                code_patient=code,
+                nom_complet=nom_complet_final or None,
                 email=email,
-                telephone=telephone,
+                telephone=numero if numero else None,
                 sexe=sexe,
                 annee_naissance=annee_naissance,
                 note=note,
+                nom=nom or "",
+                prenom=prenom or "",
+                date_naissance=date_naissance,
             )
             session.add(patient)
             await session.flush()
@@ -607,6 +636,56 @@ async def obtenir_patient_par_id(id_patient: int) -> Patient | None:
     if not _sessions:
         return None
     async with _sessions() as session:
+        return await session.get(Patient, id_patient)
+
+
+async def generer_code_patient() -> str:
+    """Genere le prochain code patient au format AER-AAAA-NNNN.
+
+    La sequence est extraite du suffixe numerique maximal des codes de
+    l'annee courante (la colonne code_patient est UNIQUE : une eventuelle
+    collision entre cliniciens concurrents est rejouee par la route).
+    """
+    annee = datetime.now(timezone.utc).year
+    prefixe = f"AER-{annee}-"
+    suffixe_max = 0
+    if _sessions is not None:
+        async with _sessions() as session:
+            resultat = await session.execute(
+                text("SELECT code_patient FROM patients WHERE code_patient LIKE :prefix"),
+                {"prefix": f"{prefixe}%"},
+            )
+            for (code,) in resultat.all():
+                try:
+                    suffixe_max = max(suffixe_max, int(code.rsplit("-", 1)[-1]))
+                except ValueError:
+                    continue
+    return f"{prefixe}{suffixe_max + 1:04d}"
+
+
+async def rechercher_patient_par_telephone(telephone: str) -> Patient | None:
+    """Dedoublonne par numero WhatsApp normalise (index unique partiel).
+
+    Le telephone est compare sous sa forme normalisee (chiffres + prefixe
+    pays) : c'est la forme stockee a la creation, garantie unique par la
+    migration 0004 (ux_patients_telephone).
+    """
+    if not _sessions:
+        return None
+    numero = normaliser_numero(telephone)
+    if not numero:
+        return None
+    async with _sessions() as session:
+        resultat = await session.execute(
+            text(
+                "SELECT id_patient FROM patients "
+                "WHERE telephone = :numero AND telephone IS NOT NULL"
+            ),
+            {"numero": numero},
+        )
+        id_patient = resultat.scalar()
+        if id_patient is None:
+            return None
         return await session.get(Patient, id_patient)
 
 

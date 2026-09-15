@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { Mail, MessageCircle, Paperclip, Plus, RefreshCw, Send, UserPlus } from "lucide-react";
+import { Mail, MessageCircle, Plus, RefreshCw, Send, UserPlus } from "lucide-react";
 import { useEffect, useState, type FormEvent } from "react";
 import { Panel, Tag } from "@/components/aeris/primitives";
 import { Button } from "@/components/ui/button";
@@ -190,7 +190,9 @@ function CreerPatientDialog({
   onCree: () => void;
 }) {
   const [form, setForm] = useState({
-    code_patient: "",
+    nom: "",
+    prenom: "",
+    date_naissance: "",
     nom_complet: "",
     email: "",
     telephone: "",
@@ -205,11 +207,18 @@ function CreerPatientDialog({
 
   const soumettre = async (e: FormEvent) => {
     e.preventDefault();
+    if (!form.nom.trim() || !form.prenom.trim() || !form.telephone.trim()) {
+      setErreur("Nom, prénom et téléphone sont obligatoires.");
+      return;
+    }
     setEnCours(true);
     setErreur(null);
     try {
       await creerPatient({
-        code_patient: form.code_patient.trim().toUpperCase(),
+        // code_patient volontairement absent : AER-AAAA-NNNN est généré par le moteur.
+        nom: form.nom.trim(),
+        prenom: form.prenom.trim(),
+        date_naissance: form.date_naissance || null,
         nom_complet: form.nom_complet.trim() || null,
         email: form.email.trim().toLowerCase() || null,
         telephone: form.telephone.trim() || null,
@@ -217,7 +226,9 @@ function CreerPatientDialog({
         annee_naissance: form.annee_naissance ? Number(form.annee_naissance) : null,
       });
       setForm({
-        code_patient: "",
+        nom: "",
+        prenom: "",
+        date_naissance: "",
         nom_complet: "",
         email: "",
         telephone: "",
@@ -226,11 +237,13 @@ function CreerPatientDialog({
       });
       onCree();
     } catch (ex) {
-      setErreur(
-        ex instanceof ApiError
-          ? `Erreur ${ex.status} : code peut-être déjà pris`
-          : "Création impossible",
-      );
+      if (ex instanceof ApiError && ex.status === 409) {
+        setErreur(
+          "Patient déjà enregistré avec ce téléphone — le compte existant doit être réutilisé (page Diagnostic).",
+        );
+      } else {
+        setErreur(ex instanceof ApiError ? `Erreur ${ex.status}` : "Création impossible");
+      }
     } finally {
       setEnCours(false);
     }
@@ -246,31 +259,41 @@ function CreerPatientDialog({
               Ajouter un patient
             </DialogTitle>
             <DialogDescription>
-              Le code patient permet au clinicien de rattacher une analyse ; l'email ou le
-              téléphone WhatsApp reçoit l'OTP.
+              Le code patient (AER-AAAA-NNNN) est généré automatiquement. L'email ou le téléphone
+              WhatsApp reçoit l'OTP pour la consultation des résultats.
             </DialogDescription>
           </DialogHeader>
 
           <div className="grid gap-4 py-4">
-            <div className="space-y-1.5">
-              <Label htmlFor="code">Code patient *</Label>
-              <div className="relative">
-                <Paperclip className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="nom">Nom *</Label>
+                <Input id="nom" value={form.nom} onChange={(e) => changer("nom", e.target.value)} />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="prenom">Prénom *</Label>
                 <Input
-                  id="code"
-                  required
-                  placeholder="AERIS-2026-0001"
-                  className="pl-8 font-mono"
-                  value={form.code_patient}
-                  onChange={(e) => changer("code_patient", e.target.value)}
+                  id="prenom"
+                  value={form.prenom}
+                  onChange={(e) => changer("prenom", e.target.value)}
                 />
               </div>
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="nom">Nom complet</Label>
+              <Label htmlFor="date_naissance">Date de naissance (optionnel)</Label>
               <Input
-                id="nom"
+                id="date_naissance"
+                type="date"
+                value={form.date_naissance}
+                onChange={(e) => changer("date_naissance", e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="nom_complet">Nom complet (libre, optionnel)</Label>
+              <Input
+                id="nom_complet"
                 value={form.nom_complet}
+                placeholder="ex. Diop Awa"
                 onChange={(e) => changer("nom_complet", e.target.value)}
               />
             </div>

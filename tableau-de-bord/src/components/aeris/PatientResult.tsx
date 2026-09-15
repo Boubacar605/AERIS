@@ -6,12 +6,34 @@
  * confiances). L'interface est volontairement simple, sans navigation AERIS.
  */
 
-import { Activity, CheckCircle2, FileText, Lock, ShieldCheck, XCircle } from "lucide-react";
+import {
+  Activity,
+  CheckCircle2,
+  Download,
+  FileText,
+  Loader2,
+  Lock,
+  ShieldCheck,
+  XCircle,
+} from "lucide-react";
+import { useState } from "react";
 import type { ReponseAccesResultat } from "@/lib/api";
+import { genererPdfPatient } from "@/lib/export-pdf";
 import { cn } from "@/lib/utils";
 
 export function PatientResult({ donnees }: { donnees: ReponseAccesResultat }) {
   const { patient, resultats } = donnees;
+  const [pdfEnCours, setPdfEnCours] = useState(false);
+
+  /** Télécharge le résultat au format PDF (marque AERIS) sans quitter la page. */
+  const telechargerPdf = async () => {
+    setPdfEnCours(true);
+    try {
+      await genererPdfPatient(donnees);
+    } finally {
+      setPdfEnCours(false);
+    }
+  };
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
@@ -103,7 +125,26 @@ export function PatientResult({ donnees }: { donnees: ReponseAccesResultat }) {
           </ul>
         )}
 
-        <p className="mt-8 flex items-start gap-2 rounded-md border border-border bg-muted/30 p-3 text-xs leading-relaxed text-muted-foreground">
+        <div className="mt-7 flex flex-wrap items-center justify-between gap-3">
+          <button
+            type="button"
+            onClick={() => void telechargerPdf()}
+            disabled={pdfEnCours}
+            className="flex items-center gap-2 rounded-md bg-primary px-4 py-2 font-mono text-[11px] font-bold tracking-[0.14em] text-primary-foreground uppercase transition-opacity hover:opacity-90 disabled:opacity-60"
+          >
+            {pdfEnCours ? (
+              <Loader2 className="size-3.5 animate-spin" />
+            ) : (
+              <Download className="size-3.5" />
+            )}
+            {pdfEnCours ? "Génération…" : "Télécharger mon résultat (PDF)"}
+          </button>
+          <p className="font-mono text-[10px] text-muted-foreground">
+            Dossier {patient.code_patient}
+          </p>
+        </div>
+
+        <p className="mt-6 flex items-start gap-2 rounded-md border border-border bg-muted/30 p-3 text-xs leading-relaxed text-muted-foreground">
           <Activity className="mt-0.5 size-3.5 shrink-0" />
           Ce compte rendu est généré automatiquement par le prototype AERIS à des fins de recherche.
           En cas de question, contactez votre établissement de santé.

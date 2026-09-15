@@ -1,4 +1,11 @@
-"""Routes d'administration : gestion des utilisateurs et des patients."""
+"""Routes d'administration : gestion des utilisateurs et des patients.
+
+Le flux « Approuver » de la page Résultat (POST /admin/examens/approuver) y
+vit aussi : il est ouvert au role clinicien, contrairement au reste du panel.
+"""
+
+import logging
+from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -9,6 +16,8 @@ from app.notification import envoyer_notification_otp
 from app.whatsapp import normaliser_numero
 
 routeur_admin = APIRouter(prefix="/admin", tags=["Administration"])
+
+_logger = logging.getLogger("aeris.admin")
 
 
 # ---------------------------------------------------------------------------
@@ -90,13 +99,20 @@ async def modifier_utilisateur(
 # ---------------------------------------------------------------------------
 
 class CreerPatientRequete(BaseModel):
-    code_patient: str
+    """Patient cree en admin : le code AER-AAAA-NNNN est genere automatiquement
+    s'il n'est pas fourni (flux patient automatique), et le numero de telephone
+    est la cle de dedoublonnage (index unique partiel)."""
+
+    code_patient: str | None = None
     nom_complet: str | None = None
     email: str | None = None
     telephone: str | None = None
     sexe: str | None = None
     annee_naissance: int | None = None
     note: str | None = None
+    nom: str | None = None
+    prenom: str | None = None
+    date_naissance: str | None = None
 
 
 class ModifierPatientRequete(BaseModel):
@@ -121,15 +137,46 @@ async def creer_patient(
     requete: CreerPatientRequete,
     _=Depends(exiger_role("admin")),
 ) -> dict:
-    """Cree un nouveau patient (necessaire pour l'envoi OTP)."""
+    """Cree un nouveau patient (necessaire pour l'envoi OTP).
+
+    Le code patient est genere automatiquement (AER-AAAA-NNNN) s'il n'est pas
+    fourni. Un numero de telephone deja enregistre est refuse (dedoublonnage)
+    : reutilisez le patient existant via la page Diagnostic.
+    """
+    if requete.telephone:
+        numero = normaliser_numero(requete.telephone)
+        existant = await persistance.rechercher_patient_par_telephone(numero)
+        if existant is not None:
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    f"Patient deja enregistre avec ce telephone "
+                    f"({existant.code_patient})"
+                ),
+            )
+    else:
+        numero = None
+
+    date_naissance = None
+    if requete.date_naissance:
+        try:
+            date_naissance = date.fromisoformat(requete.date_naissance)
+        except ValueError:
+            raise HTTPException(
+                status_code=422, detail="date_naissance invalide (format AAAA-MM-JJ)"
+            )
+
     patient = await persistance.creer_patient(
         code_patient=requete.code_patient,
         nom_complet=requete.nom_complet,
         email=requete.email,
-        telephone=requete.telephone,
+        telephone=numero,
         sexe=requete.sexe,
         annee_naissance=requete.annee_naissance,
         note=requete.note,
+        nom=requete.nom,
+        prenom=requete.prenom,
+        date_naissance=date_naissance,
     )
     return {
         "id_patient": patient.id_patient,
@@ -181,6 +228,54 @@ async def renvoyer_otp(
         destination=destination,
     )
     envoye = await envoyer_notification_otp(patient, code)
+    return {
+        "statut": "otp_envoye" if envoye["ok"] else "echec_envoi",
+        "canal": envoye["canal"],
+        "contact": contact,
+    }
+
+
+class ApprobationExamenRequete(BaseModel):
+    """Le clinicien valide un examen : la notification OTP part alors."""
+
+    code_patient: str
+
+
+@routeur_admin.post("/examens/approuver")
+async def approuver_examen(
+    requete: ApprobationExamenRequete,
+    _=Depends(exiger_role("clinicien")),
+) -> dict:
+    """Valide l'examen a l'issue duquel le patient recoit son code OTP.
+
+    C'est le declencheur du flux patient : le code est genere et envoye par
+    email + WhatsApp si le patient a une adresse email, sinon par WhatsApp
+    seul (envoyer_notification_otp choisi les canaux). Le code + le lien de
+    la page « consultation resultats » sont inclus dans chaque message.
+    """
+    patient = await persistance.obtenir_patient_par_code(requete.code_patient)
+    if not patient:
+        raise HTTPException(status_code=404, detail="Patient introuvable")
+
+    contact = patient.telephone or patient.email
+    if not contact:
+        raise HTTPException(
+            status_code=400,
+            detail="Patient sans telephone ni email — impossible d'envoyer l'OTP",
+        )
+
+    destination = normaliser_numero(patient.telephone) if patient.telephone else patient.email
+    code = await persistance.generer_et_stocker_otp(
+        id_patient=patient.id_patient,
+        id_examen=None,
+        destination=destination,
+    )
+    envoye = await envoyer_notification_otp(patient, code)
+    _logger.info(
+        "Examen approuve pour %s — OTP envoye sur %s",
+        patient.code_patient,
+        envoye["canal"],
+    )
     return {
         "statut": "otp_envoye" if envoye["ok"] else "echec_envoi",
         "canal": envoye["canal"],

@@ -2,12 +2,14 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import {
   ArrowLeft,
   BadgeCheck,
+  Download,
   FileText,
   KeyRound,
   Loader2,
   Mail,
   MessageCircle,
   ScanLine,
+  Send,
   ShieldAlert,
   ThumbsDown,
   Timer,
@@ -17,8 +19,15 @@ import { AppShell, PageHeader } from "@/components/aeris/AppShell";
 import { ImageViewer } from "@/components/aeris/ImageViewer";
 import { PatientResult } from "@/components/aeris/PatientResult";
 import { Panel, Tag } from "@/components/aeris/primitives";
-import { ApiError, verifierOtp, type ReponseAccesResultat } from "@/lib/api";
+import {
+  ApiError,
+  approuverExamen,
+  type ReponseAccesResultat,
+  type ReponseApprobation,
+  verifierOtp,
+} from "@/lib/api";
 import { genererCompteRendu, type ToneFiabilite } from "@/lib/compte-rendu";
+import { genererPdfClinique } from "@/lib/export-pdf";
 import { useResultat } from "@/lib/resultat-store";
 import { exigerRole, pageAccueilPourRole } from "@/lib/authentification";
 import { sessionHydratee, useSession } from "@/lib/authentification-store";
@@ -156,7 +165,9 @@ function PatientOtpHub() {
           </div>
 
           <label className="mt-4 block">
-            <span className="label-xs">{canal === "email" ? "Adresse email" : "Numéro WhatsApp"}</span>
+            <span className="label-xs">
+              {canal === "email" ? "Adresse email" : "Numéro WhatsApp"}
+            </span>
             <div className="relative mt-1.5">
               {canal === "email" ? (
                 <Mail className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -259,8 +270,44 @@ function ResultatContent() {
   const dossier = useResultat();
   const navigate = useNavigate();
   const [decision, setDecision] = useState<"approuve" | "desapprouve" | null>(null);
+  const [envoiOtp, setEnvoiOtp] = useState(false);
+  const [approbation, setApprobation] = useState<ReponseApprobation | null>(null);
+  const [erreurApprobation, setErreurApprobation] = useState<string | null>(null);
+  const [pdfEnCours, setPdfEnCours] = useState(false);
 
   const retourAuDiagnostic = () => navigate({ to: "/diagnostic" });
+
+  /** « Approuver » : envoie le code OTP au patient (email + WhatsApp, ou WhatsApp
+   * seul selon ses coordonnées) avec le lien de consultation, puis verrouille
+   * la décision. */
+  const approuver = async () => {
+    if (!dossier) return;
+    setDecision("approuve");
+    setEnvoiOtp(true);
+    setErreurApprobation(null);
+    try {
+      const reponse = await approuverExamen(dossier.patient.code_patient);
+      setApprobation(reponse);
+    } catch {
+      setErreurApprobation(
+        "Échec de l'envoi OTP — le patient n'a pas été notifié. Vérifiez la connectivité du moteur, puis réessayez.",
+      );
+      setApprobation(null);
+    } finally {
+      setEnvoiOtp(false);
+    }
+  };
+
+  /** « Télécharger le PDF » : compte rendu clinique avec la marque AERIS. */
+  const telechargerPdf = async () => {
+    if (!dossier) return;
+    setPdfEnCours(true);
+    try {
+      await genererPdfClinique(dossier);
+    } finally {
+      setPdfEnCours(false);
+    }
+  };
 
   // Aucun dossier (arrivée directe ou page rechargée) : on guide vers le diagnostic.
   if (!dossier) {
@@ -377,8 +424,8 @@ function ResultatContent() {
               <div className="flex flex-wrap gap-2">
                 <button
                   type="button"
-                  disabled={decision !== null}
-                  onClick={() => setDecision("approuve")}
+                  disabled={decision !== null || envoiOtp}
+                  onClick={() => void approuver()}
                   className={cn(
                     "flex flex-1 items-center justify-center gap-2 rounded-md border px-3 py-2 font-mono text-[11px] font-bold tracking-[0.12em] uppercase transition-colors",
                     decision === "approuve"
@@ -386,8 +433,12 @@ function ResultatContent() {
                       : "border-ok/30 bg-card text-ok hover:bg-ok-soft/40 disabled:opacity-50",
                   )}
                 >
-                  <BadgeCheck className="size-4" />
-                  Approuver
+                  {envoiOtp ? (
+                    <Loader2 className="size-4 animate-spin" />
+                  ) : (
+                    <BadgeCheck className="size-4" />
+                  )}
+                  {envoiOtp ? "Envoi OTP…" : "Approuver"}
                 </button>
                 <button
                   type="button"
@@ -406,14 +457,46 @@ function ResultatContent() {
               </div>
 
               {decision === "approuve" && (
-                <p className="mt-3 flex items-start gap-2 rounded-md border border-ok/40 bg-ok-soft/30 p-3 text-xs text-navy/80">
-                  <BadgeCheck className="mt-0.5 size-3.5 shrink-0 text-ok" />
-                  <span>
-                    <span className="font-semibold text-ok">Décision IA approuvée.</span> Le verdict
-                    est validé par le clinicien et peut servir de référence pour le suivi du patient
-                    en zone à faible connectivité.
-                  </span>
-                </p>
+                <div className="mt-3 space-y-2">
+                  <p className="flex items-start gap-2 rounded-md border border-ok/40 bg-ok-soft/30 p-3 text-xs text-navy/80">
+                    <BadgeCheck className="mt-0.5 size-3.5 shrink-0 text-ok" />
+                    <span>
+                      <span className="font-semibold text-ok">Décision IA approuvée.</span> Le
+                      verdict est validé par le clinicien et peut servir de référence pour le suivi
+                      du patient en zone à faible connectivité.
+                    </span>
+                  </p>
+
+                  {approbation && approbation.statut === "otp_envoye" && (
+                    <p className="flex items-start gap-2 rounded-md border border-ok/40 bg-ok-soft/40 p-3 text-xs text-navy/80">
+                      <Send className="mt-0.5 size-3.5 shrink-0 text-ok" />
+                      <span>
+                        <span className="font-semibold text-ok">OTP envoyé au patient</span> par{" "}
+                        {approbation.canal === "email+whatsapp"
+                          ? "email et WhatsApp"
+                          : approbation.canal === "whatsapp"
+                            ? "WhatsApp seul"
+                            : approbation.canal === "email"
+                              ? "email seul"
+                              : "aucun canal"}
+                        .
+                        {approbation.contact && (
+                          <>
+                            {" "}
+                            Contact : <span className="font-mono">{approbation.contact}</span>.
+                          </>
+                        )}{" "}
+                        Le patient peut consulter ses résultats via l'OTP.
+                      </span>
+                    </p>
+                  )}
+                  {erreurApprobation && (
+                    <p className="flex items-start gap-2 rounded-md border border-alert/40 bg-alert-soft/40 p-3 text-xs text-alert">
+                      <ShieldAlert className="mt-0.5 size-3.5 shrink-0 text-alert" />
+                      <span>{erreurApprobation}</span>
+                    </p>
+                  )}
+                </div>
               )}
               {decision === "desapprouve" && (
                 <p className="mt-3 flex items-start gap-2 rounded-md border border-alert/40 bg-alert-soft/30 p-3 text-xs text-navy/80">
@@ -433,6 +516,19 @@ function ResultatContent() {
                 >
                   <ScanLine className="size-3.5" />
                   Renvoi — nouveau test
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void telechargerPdf()}
+                  disabled={pdfEnCours}
+                  className="flex items-center gap-1.5 rounded-md border border-primary/40 bg-primary/5 px-3 py-1.5 font-mono text-[10px] font-semibold tracking-[0.12em] text-primary uppercase transition-colors hover:bg-primary/10 disabled:opacity-50"
+                >
+                  {pdfEnCours ? (
+                    <Loader2 className="size-3.5 animate-spin" />
+                  ) : (
+                    <Download className="size-3.5" />
+                  )}
+                  {pdfEnCours ? "Génération…" : "Imprimer / PDF"}
                 </button>
                 <p className="ml-auto flex items-center gap-1.5 font-mono text-[10px] text-muted-foreground">
                   <Timer className="size-3" />

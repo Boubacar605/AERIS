@@ -181,9 +181,17 @@ def _envoyer(patient):
     return asyncio.run(envoyer_notification_otp(patient, code_otp="123456"))
 
 
-def test_choix_du_canal_whatsapp_prioritaire():
-    """Un patient avec téléphone reçoit son OTP en WhatsApp, même s'il a un email."""
+def test_choix_du_canal_email_plus_whatsapp_avec_telephone_et_email():
+    """Un patient avec téléphone ET email reçoit son OTP sur les deux canaux."""
     patient = _patient(telephone="77 123 45 67", email="patient@example.org")
+    resultat = _envoyer(patient)
+    assert resultat["canal"] == "email+whatsapp"
+    assert resultat["ok"] is True
+
+
+def test_choix_du_canal_whatsapp_avec_telephone_seul():
+    """Échec parent : sans email, seul le WhatsApp est notifié."""
+    patient = _patient(telephone="77 123 45 67", email=None)
     resultat = _envoyer(patient)
     assert resultat["canal"] == "whatsapp"
     assert resultat["ok"] is True

@@ -11,6 +11,11 @@
 import { useSyncExternalStore } from "react";
 import type { ResultatAnalyse } from "@/lib/api";
 
+export type DossierPatient = {
+  code_patient: string;
+  nom_complet: string | null;
+};
+
 export type DossierResultat = {
   /** Fichier radiographie original, transmis depuis la page diagnostic. */
   fichier: File;
@@ -18,6 +23,8 @@ export type DossierResultat = {
   resultat: ResultatAnalyse;
   /** Moment où l'examen a été produit (ISO), affiché dans le compte rendu. */
   horodatage: string;
+  /** Patient lié à l'examen (code AER-AAAA-NNNN) : sert à l'approbation OTP. */
+  patient: DossierPatient;
 };
 
 let dossier: DossierResultat | null = null;

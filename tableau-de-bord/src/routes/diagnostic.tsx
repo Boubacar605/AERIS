@@ -8,13 +8,14 @@ import {
   Cloud,
   Cpu,
   Info,
-  MailCheck,
   Play,
   RotateCcw,
   ScanLine,
   ShieldAlert,
   Stethoscope,
   Upload,
+  UserCheck,
+  UserPlus,
 } from "lucide-react";
 import { AppShell, PageHeader, useConnexion } from "@/components/aeris/AppShell";
 import { Meter, Panel, StatusDot, Tag } from "@/components/aeris/primitives";
@@ -22,8 +23,11 @@ import { SyntheseClinique } from "@/components/aeris/SyntheseClinique";
 import { useHistoriqueLive } from "@/hooks/use-api";
 import {
   uploadImage,
+  trouverOuCreerPatient,
+  type EnTetePatient,
   type EvenementEscalade,
   type FiltrageSpecialistes,
+  type ReponseEnTetePatient,
   type ReponseRoutage,
   type ResultatAnalyse,
   type ResultatDiagnostic,
@@ -332,8 +336,23 @@ function DiagnosticContent() {
   const { statistiques: statsHistorique } = useHistoriqueLive(5000);
   const [mode, setMode] = useState<ModeRoutage>("auto");
   const [contexte, setContexte] = useState<ContexteMode>("auto");
-  const [codePatient, setCodePatient] = useState("");
-  const [notifiePatient, setNotifiePatient] = useState(false);
+  // En-tête patient : obligatoire avant l'upload (code AER-AAAA-NNNN auto).
+  const [enTete, setEnTete] = useState<{
+    nom: string;
+    prenom: string;
+    date_naissance: string | null;
+    email: string;
+    telephone: string;
+  }>({
+    nom: "",
+    prenom: "",
+    date_naissance: null,
+    email: "",
+    telephone: "",
+  });
+  const [patientEnrole, setPatientEnrole] = useState<ReponseEnTetePatient | null>(null);
+  const [enregistrementEnCours, setEnregistrementEnCours] = useState(false);
+  const [erreurEnTete, setErreurEnTete] = useState<string | null>(null);
   const [fichier, setFichier] = useState<File | null>(null);
   const imagePreviewUrl = useMemo(() => (fichier ? URL.createObjectURL(fichier) : null), [fichier]);
   const [resultat, setResultat] = useState<ResultatAnalyse | null>(null);
@@ -359,9 +378,45 @@ function DiagnosticContent() {
     timersRef.current = [];
   };
 
+  /**
+   * Enregistre (ou retrouve) le patient depuis l'en-tête, avant toute analyse.
+   * Le code patient est généré par le moteur ; un téléphone déjà connu réutilise
+   * le compte existant (aucun doublon).
+   */
+  const enregistrerPatient = async () => {
+    if (enregistrementEnCours) return;
+    setErreurEnTete(null);
+    if (!enTete.nom.trim() || !enTete.prenom.trim() || !enTete.telephone.trim()) {
+      setErreurEnTete("Nom, prénom et numéro de téléphone sont obligatoires.");
+      return;
+    }
+    setEnregistrementEnCours(true);
+    try {
+      const enTetePatient: EnTetePatient = {
+        nom: enTete.nom.trim(),
+        prenom: enTete.prenom.trim(),
+        date_naissance: enTete.date_naissance || null,
+        email: enTete.email.trim() || null,
+        telephone: enTete.telephone.trim(),
+      };
+      const reponse = await trouverOuCreerPatient(enTetePatient);
+      setPatientEnrole(reponse);
+    } catch {
+      setErreurEnTete(
+        "Enregistrement impossible — moteur injoignable ou numéro de téléphone invalide.",
+      );
+    } finally {
+      setEnregistrementEnCours(false);
+    }
+  };
+
   const run = async () => {
     if (running) return;
     if (!fichier) {
+      setStep(-1);
+      return;
+    }
+    if (!patientEnrole) {
       setStep(-1);
       return;
     }
@@ -369,7 +424,6 @@ function DiagnosticContent() {
     purgeTimers();
     setResultat(null);
     setErreurLive(false);
-    setNotifiePatient(false);
     setStep(0);
 
     // Animation visuelle du pipeline pendant l'appel réseau.
@@ -383,10 +437,10 @@ function DiagnosticContent() {
         fichier,
         mode === "auto" ? undefined : mode,
         contexte,
-        codePatient.trim() || undefined,
+        patientEnrole.code_patient,
       );
-      // Si un code patient valide a été fourni, le moteur a envoyé l'email OTP.
-      if (codePatient.trim()) setNotifiePatient(true);
+      // La notification OTP, elle, n'est déclenchée que par l'approbation du
+      // clinicien (page Résultat) — jamais par l'analyse.
       setResultat({
         destination: reponse.decision.destination,
         raison: reponse.decision.raison,
@@ -417,7 +471,6 @@ function DiagnosticContent() {
     setStep(-1);
     setResultat(null);
     setErreurLive(false);
-    setNotifiePatient(false);
   };
 
   const navigate = useNavigate();
@@ -425,10 +478,15 @@ function DiagnosticContent() {
   /** Dépose l'examen dans le store partagé puis ouvre le compte rendu clinique. */
   const allerAuRapport = () => {
     if (!fichier || !resultat) return;
+    if (!patientEnrole) return;
     definirResultat({
       fichier,
       resultat,
       horodatage: new Date().toISOString(),
+      patient: {
+        code_patient: patientEnrole.code_patient,
+        nom_complet: patientEnrole.nom_complet,
+      },
     });
     navigate({ to: "/resultat", search: {} });
   };
@@ -457,6 +515,137 @@ function DiagnosticContent() {
         <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.25fr)]">
           {/* -------- Colonne gauche : entrée -------- */}
           <div className="space-y-4">
+            {/* -------- En-tête patient : enregistré avant toute analyse -------- */}
+            <Panel
+              title="Patient"
+              subtitle="En-tête exigé : le code AER-AAAA-NNNN est généré automatiquement"
+            >
+              <div className="grid gap-2 sm:grid-cols-2">
+                <label className="block">
+                  <span className="label-xs">Nom</span>
+                  <input
+                    type="text"
+                    value={enTete.nom}
+                    onChange={(e) => setEnTete({ ...enTete, nom: e.target.value })}
+                    placeholder="Diop"
+                    className="mt-1.5 w-full rounded-md border border-border bg-background px-3 py-2 font-mono text-[11px] outline-none placeholder:text-muted-foreground/50 focus:border-primary/60"
+                  />
+                </label>
+                <label className="block">
+                  <span className="label-xs">Prénom</span>
+                  <input
+                    type="text"
+                    value={enTete.prenom}
+                    onChange={(e) => setEnTete({ ...enTete, prenom: e.target.value })}
+                    placeholder="Awa"
+                    className="mt-1.5 w-full rounded-md border border-border bg-background px-3 py-2 font-mono text-[11px] outline-none placeholder:text-muted-foreground/50 focus:border-primary/60"
+                  />
+                </label>
+                <label className="block">
+                  <span className="label-xs">
+                    Date de naissance{" "}
+                    <span className="font-normal text-muted-foreground">(optionnel)</span>
+                  </span>
+                  <input
+                    type="date"
+                    value={enTete.date_naissance ?? ""}
+                    onChange={(e) =>
+                      setEnTete({ ...enTete, date_naissance: e.target.value || null })
+                    }
+                    className="mt-1.5 w-full rounded-md border border-border bg-background px-3 py-2 font-mono text-[11px] outline-none placeholder:text-muted-foreground/50 focus:border-primary/60"
+                  />
+                </label>
+                <label className="block">
+                  <span className="label-xs">
+                    Email <span className="font-normal text-muted-foreground">(optionnel)</span>
+                  </span>
+                  <input
+                    type="email"
+                    value={enTete.email ?? ""}
+                    onChange={(e) => setEnTete({ ...enTete, email: e.target.value })}
+                    placeholder="awa.diop@example.org"
+                    className="mt-1.5 w-full rounded-md border border-border bg-background px-3 py-2 font-mono text-[11px] outline-none placeholder:text-muted-foreground/50 focus:border-primary/60"
+                  />
+                </label>
+                <label className="block sm:col-span-2">
+                  <span className="label-xs">
+                    Numéro de téléphone{" "}
+                    <span className="font-bold text-primary">(obligatoire — WhatsApp)</span>
+                  </span>
+                  <input
+                    type="tel"
+                    inputMode="tel"
+                    value={enTete.telephone}
+                    onChange={(e) => setEnTete({ ...enTete, telephone: e.target.value })}
+                    placeholder="77 123 45 67"
+                    className="mt-1.5 w-full rounded-md border border-border bg-background px-3 py-2 font-mono text-[11px] outline-none placeholder:text-muted-foreground/50 focus:border-primary/60"
+                  />
+                </label>
+              </div>
+
+              {erreurEnTete && (
+                <p className="mt-2 flex items-start gap-1.5 rounded-md border border-alert/30 bg-alert-soft px-3 py-2 font-mono text-[10px] text-alert">
+                  <Info className="mt-0.5 size-3.5 shrink-0" />
+                  {erreurEnTete}
+                </p>
+              )}
+
+              <button
+                type="button"
+                onClick={enregistrerPatient}
+                disabled={enregistrementEnCours}
+                className="mt-3 flex w-full items-center justify-center gap-2 rounded-md border border-primary/40 bg-primary/5 px-3 py-2 font-mono text-[11px] font-bold tracking-[0.14em] text-primary uppercase transition-opacity hover:bg-primary/10 disabled:opacity-50"
+              >
+                {enregistrementEnCours ? (
+                  "Enregistrement…"
+                ) : patientEnrole ? (
+                  <>
+                    <UserCheck className="size-3.5" />
+                    Compte lié — patient enregistré
+                  </>
+                ) : (
+                  <>
+                    <UserPlus className="size-3.5" />
+                    Enregistrer le patient
+                  </>
+                )}
+              </button>
+
+              {patientEnrole && (
+                <div>
+                  <p
+                    className={cn(
+                      "mt-3 flex items-start gap-1.5 rounded-md border px-3 py-2 font-mono text-[10px]",
+                      patientEnrole.deja_enregistre
+                        ? "border-warn/30 bg-warn-soft/40 text-warn"
+                        : "border-ok/30 bg-ok-soft text-ok",
+                    )}
+                  >
+                    {patientEnrole.deja_enregistre ? (
+                      <>
+                        <Info className="mt-0.5 size-3.5 shrink-0" />
+                        Patient déjà enregistré avec ce téléphone — compte réutilisé, aucun doublon
+                        créé.
+                      </>
+                    ) : (
+                      <>
+                        <UserCheck className="mt-0.5 size-3.5 shrink-0" />
+                        Patient créé avec succès.
+                      </>
+                    )}
+                  </p>
+                  <p className="mt-2 flex items-center justify-between rounded-md border border-border bg-muted/30 px-3 py-2">
+                    <span className="font-mono text-[10px] tracking-[0.12em] text-muted-foreground uppercase">
+                      Code patient (auto)
+                    </span>
+                    <span className="font-mono text-sm font-bold text-primary">
+                      {patientEnrole.code_patient}
+                    </span>
+                  </p>
+                </div>
+              )}
+            </Panel>
+
             <Panel title="Study input" subtitle="Radiographie thoracique à analyser">
               <div className="grid-surface relative aspect-4/3 overflow-hidden rounded-lg border border-border bg-muted/40">
                 <label
@@ -560,37 +749,11 @@ function DiagnosticContent() {
                 Un contexte clinique prime sur le triage automatique par le format.
               </p>
 
-              <label className="mt-4 block">
-                <span className="label-xs">
-                  Code patient{" "}
-                  <span className="font-normal text-muted-foreground">(optionnel)</span>
-                </span>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  value={codePatient}
-                  onChange={(e) => setCodePatient(e.target.value.replace(/\s/g, "").slice(0, 16))}
-                  placeholder="ex. AER-2025-001"
-                  className="mt-1.5 w-full rounded-md border border-border bg-background px-3 py-2 font-mono text-[11px] outline-none placeholder:text-muted-foreground/50 focus:border-primary/60"
-                />
-              </label>
-              {notifiePatient ? (
-                <p className="mt-2 flex items-start gap-1.5 rounded-md border border-ok/30 bg-ok-soft px-3 py-2 font-mono text-[10px] text-ok">
-                  <MailCheck className="mt-0.5 size-3.5 shrink-0" />
-                  Email OTP envoyé au patient — code {codePatient}
-                </p>
-              ) : codePatient && resultat ? (
-                <p className="mt-2 flex items-start gap-1.5 rounded-md border border-warn/30 bg-warn-soft/40 px-3 py-2 font-mono text-[10px] text-warn">
-                  <Info className="mt-0.5 size-3.5 shrink-0" />
-                  Patient introuvable ou sans email — aucun OTP envoyé.
-                </p>
-              ) : null}
-
               <div className="mt-4 flex gap-2">
                 <button
                   type="button"
                   onClick={run}
-                  disabled={running || !fichier || moteurIndisponible}
+                  disabled={running || !fichier || !patientEnrole || moteurIndisponible}
                   className="flex flex-1 items-center justify-center gap-2 rounded-md bg-primary px-3 py-2 font-mono text-[11px] font-bold tracking-[0.14em] text-primary-foreground uppercase transition-opacity hover:opacity-90 disabled:opacity-50"
                 >
                   <Play className="size-3.5" />

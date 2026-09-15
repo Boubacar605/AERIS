@@ -106,6 +106,58 @@ export async function uploadImage(
   return (await res.json()) as ReponseRoutage;
 }
 
+/* ------------------------- Flux patient automatique ------------------------ */
+
+/**
+ * En-tête patient rempli par le clinicien sur la page Diagnostic AVANT
+ * l'upload : nom, prénom, date de naissance, email (optionnel) et téléphone
+ * (obligatoire). Le code patient est généré automatiquement par le moteur.
+ */
+export type EnTetePatient = {
+  nom: string;
+  prenom: string;
+  date_naissance?: string | null;
+  email?: string | null;
+  telephone: string;
+};
+
+/** Réponse de POST /routage/patient — patient créé ou compte réutilisé. */
+export type ReponseEnTetePatient = {
+  id_patient: number;
+  code_patient: string;
+  nom_complet: string | null;
+  deja_enregistre: boolean;
+};
+
+/** POST /routage/patient — crée (code AER-AAAA-NNNN) ou retrouve le patient. */
+export async function trouverOuCreerPatient(enTete: EnTetePatient): Promise<ReponseEnTetePatient> {
+  return fetchAPI<ReponseEnTetePatient>("/routage/patient", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(enTete),
+  });
+}
+
+/** Réponse de l'approbation : le patient reçoit son OTP par email et/ou WhatsApp. */
+export type ReponseApprobation = {
+  statut: "otp_envoye" | "echec_envoi";
+  canal: "email+whatsapp" | "whatsapp" | "email" | "aucun";
+  contact?: string;
+};
+
+/**
+ * POST /admin/examens/approuver — bouton « Approuver » de la page Résultat :
+ * envoie le code OTP validé au patient (email + WhatsApp si adresse connue,
+ * sinon WhatsApp seul ; le lien de consultation reste dans chaque message).
+ */
+export async function approuverExamen(codePatient: string): Promise<ReponseApprobation> {
+  return fetchAPI<ReponseApprobation>("/admin/examens/approuver", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ code_patient: codePatient }),
+  });
+}
+
 /* ------------------------------- Types ------------------------------- */
 
 /** Métriques système exposées par GET /etat-systeme. */
@@ -335,16 +387,23 @@ export type PatientAdmin = {
   annee_naissance: number | null;
   note: string | null;
   cree_le?: string | null;
+  nom?: string | null;
+  prenom?: string | null;
+  date_naissance?: string | null;
 };
 
 export type CreerPatientRequete = {
-  code_patient: string;
+  /** Optionnel depuis le flux automatique : AER-AAAA-NNNN si absent. */
+  code_patient?: string | null;
   nom_complet?: string | null;
   email?: string | null;
   telephone?: string | null;
   sexe?: string | null;
   annee_naissance?: number | null;
   note?: string | null;
+  nom?: string | null;
+  prenom?: string | null;
+  date_naissance?: string | null;
 };
 
 export async function listerUtilisateurs(): Promise<UtilisateurAdmin[]> {

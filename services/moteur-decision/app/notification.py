@@ -79,28 +79,41 @@ async def envoyer_notification_otp(
     patient,
     code_otp: str,
 ) -> dict:
-    """Adresse l'OTP au patient sur le canal le plus adapte.
+    """Adresse l'OTP au patient sur le(s) canal(x) de notification.
 
-    Choix du canal :
-    1. WhatsApp si le patient a un telephone (le relais AERIS Baileys est
-       le canal cible pour les patients sans email) ;
-    2. sinon Email si le patient a une adresse email.
+    Choix du canal (flux « Approuver » de la page Résultat) :
+    1. telephone + email  : envoi **Email ET WhatsApp** (``email+whatsapp``) ;
+    2. telephone seul     : **WhatsApp** (le relais AERIS Baileys, canal
+       cible pour les patients sans email) ;
+    3. email seul         : **Email** (anciens comptes sans telephone).
 
-    Retourne ``{"canal": "whatsapp"|"email"|"aucun", "ok": bool}``.
+    Retourne ``{"canal": "email+whatsapp"|"whatsapp"|"email"|"aucun",
+    "ok": bool}``.
     """
-    if getattr(patient, "telephone", None):
-        ok = await envoyer_otp_whatsapp(
-            patient.telephone,
-            code_otp,
-            nom_patient=patient.nom_complet,
-        )
-        return {"canal": "whatsapp", "ok": ok}
+    telephone = getattr(patient, "telephone", None)
+    email = getattr(patient, "email", None)
+    nom = getattr(patient, "nom_complet", None)
 
-    if getattr(patient, "email", None):
+    if telephone:
+        ok_whatsapp = await envoyer_otp_whatsapp(
+            telephone,
+            code_otp,
+            nom_patient=nom,
+        )
+        if email:
+            ok_email = await envoyer_notification_resultat(
+                email_destination=email,
+                code_otp=code_otp,
+                nom_patient=nom,
+            )
+            return {"canal": "email+whatsapp", "ok": ok_whatsapp and ok_email}
+        return {"canal": "whatsapp", "ok": ok_whatsapp}
+
+    if email:
         ok = await envoyer_notification_resultat(
-            email_destination=patient.email,
+            email_destination=email,
             code_otp=code_otp,
-            nom_patient=patient.nom_complet,
+            nom_patient=nom,
         )
         return {"canal": "email", "ok": ok}
 

@@ -2,9 +2,10 @@
 
 import hashlib
 import logging
-from typing import Annotated
+from datetime import date
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from pydantic import BaseModel
 
 from app import persistance
 from app.authentification import exiger_role
@@ -13,13 +14,26 @@ from app.logique_routage.registre_diagnostics import (
     incrementer_compteur,
 )
 from app.logique_routage.selecteur_edge_cloud import decider_destination
-from app.notification import envoyer_notification_otp
 from app.schemas.schemas_routage import ReponseRoutage
 from app.whatsapp import normaliser_numero
 
 routeur_routage = APIRouter()
 
 _logger = logging.getLogger("aeris.routage")
+
+
+class EnTetePatientRequete(BaseModel):
+    """En-tête patient rempli par le clinicien avant l'upload et le traitement.
+
+    nom, prenom et telephone sont obligatoires ; email et date_naissance sont
+    optionnels (la notification OTP sera envoyee a l'approbation).
+    """
+
+    nom: str
+    prenom: str
+    date_naissance: date | None = None
+    email: str | None = None
+    telephone: str
 
 
 @routeur_routage.post("/analyser", response_model=ReponseRoutage)
@@ -39,8 +53,9 @@ async def router_et_analyser(
     surclasse le profilage automatique : il restreint ou elargit le choix
     des specialistes sollicites.
 
-    Si code_patient est fourni, un OTP est envoye par email au patient apres
-    l'analyse pour lui permettre de consulter ses resultats.
+    code_patient (cree via POST /routage/patient, avant l'upload) rattache
+    l'examen au sujet reel : la notification OTP, elle, n'est declenchee que
+    par l'approbation du clinicien (POST /admin/examens/approuver).
     """
     if contexte is not None and contexte not in ("tuberculose", "pneumonie", "general"):
         raise HTTPException(
@@ -56,8 +71,9 @@ async def router_et_analyser(
         nom_fichier=fichier.filename,
     )
 
-    # Patient désigné par code_patient (résolu une seule fois) : sert à la fois
-    # à rattacher l'examen au vrai sujet et à déclencher la notification OTP.
+    # Patient désigné par code_patient (résolu une seule fois) : rattache
+    # l'examen au vrai sujet. La notification OTP est déclenchée plus tard,
+    # à l'approbation du clinicien.
     patient_cible = None
     if code_patient and persistance.active():
         patient_cible = await persistance.obtenir_patient_par_code(code_patient)
@@ -93,28 +109,62 @@ async def router_et_analyser(
         }
     )
 
-    # Notification patient par OTP si code_patient fourni. Le contact est le
-    # téléphone (canal WhatsApp) s'il existe, sinon l'email ; la destination
-    # enregistrée sur le code est normalisée pour WhatsApp, afin de matcher la
-    # saisie du patient (vérifiée elle aussi sous forme normalisée, acces.py).
-    if patient_cible:
-        destination = (
-            normaliser_numero(patient_cible.telephone)
-            if patient_cible.telephone
-            else patient_cible.email
-        )
-        if destination:
-            code_otp = await persistance.generer_et_stocker_otp(
-                id_patient=patient_cible.id_patient,
-                id_examen=None,
-                destination=destination,
-            )
-            envoye = await envoyer_notification_otp(patient_cible, code_otp)
-            if not envoye["ok"]:
-                _logger.warning(
-                    "Notification OTP echouee (%s) pour le patient %s",
-                    envoye["canal"],
-                    patient_cible.code_patient,
-                )
-
     return resultat
+
+
+@routeur_routage.post("/patient")
+async def enregistrer_en_tete_patient(
+    requete: EnTetePatientRequete,
+    _utilisateur=Depends(exiger_role("clinicien")),
+) -> dict:
+    """Cree (ou retrouve) le patient des l'en-tete de la page Diagnostic.
+
+    Dedoublonnage par telephone (forme normalisee, index unique) : un numero
+    deja enregistre reutilise le compte existant (``deja_enregistre: true``)
+    au lieu de cree un doublon. Le code AER-AAAA-NNNN est generee par le
+    systeme ; aucune saisie manuelle requise.
+    """
+    if not persistance.active():
+        raise HTTPException(status_code=503, detail="Base de donnees indisponible")
+
+    nom = requete.nom.strip()
+    prenom = requete.prenom.strip()
+    if not nom or not prenom:
+        raise HTTPException(status_code=422, detail="Nom et prenom requis")
+    if not normaliser_numero(requete.telephone):
+        raise HTTPException(
+            status_code=422, detail="Numero de telephone invalide (chiffres requis)"
+        )
+
+    existant = await persistance.rechercher_patient_par_telephone(requete.telephone)
+    if existant is not None:
+        _logger.info(
+            "Patient deja enregistre (telephone) — compte reutilise : %s",
+            existant.code_patient,
+        )
+        return {
+            "id_patient": existant.id_patient,
+            "code_patient": existant.code_patient,
+            "nom_complet": existant.nom_complet,
+            "deja_enregistre": True,
+        }
+
+    patient = await persistance.creer_patient(
+        nom=nom,
+        prenom=prenom,
+        email=requete.email.strip().lower() if requete.email else None,
+        telephone=requete.telephone,
+        date_naissance=requete.date_naissance,
+    )
+    _logger.info(
+        "Patient cree avec un code automatique : %s (%s %s)",
+        patient.code_patient,
+        prenom,
+        nom,
+    )
+    return {
+        "id_patient": patient.id_patient,
+        "code_patient": patient.code_patient,
+        "nom_complet": patient.nom_complet,
+        "deja_enregistre": False,
+    }
