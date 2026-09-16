@@ -40,8 +40,8 @@ const LIBELLE_EXAMEN: Record<string, string> = {
 
 /** Libellé du modèle tel qu'affiché dans le rapport. */
 const LIBELLE_MODELE: Record<string, string> = {
-  tuberculose: "TB Classifier",
-  pneumonie: "Pneumonia Classifier",
+  tuberculose: "Modèle Tuberculose",
+  pneumonie: "Modèle Pneumonie",
 };
 
 function pourcentage(confiance: number): number {

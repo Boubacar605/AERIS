@@ -79,6 +79,8 @@ def _capturer_posts(monkeypatch) -> list[tuple[str, dict]]:
         ("+221 78 123 45 67", "221781234567"),  # déjà international → inchangé
         ("221771234567", "221771234567"),    # déjà prefixé → inchangé
         ("(77) 123-45-67", "221771234567"),  # caractères non chiffrés retirés
+        ("0709313319", "221709313319"),       # indicatif national « 0 » retiré
+        ("+221 70 931 33 19", "221709313319"),  # international, espaces retirés
         ("", ""),                            # vide
         (None, ""),                          # absent
     ],
@@ -101,7 +103,7 @@ def test_message_otp_contient_code_nom_url_et_validite():
     )
     assert "123456" in message
     assert "Awa Diop" in message
-    assert "https://aeris.demo.sn/resultat" in message
+    assert "https://aeris.demo.sn/resultat?otp=123456" in message
     assert str(config.otp_ttl_minutes) in message
     assert "AERIS" in message
 

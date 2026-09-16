@@ -32,10 +32,31 @@ export class ApiError extends Error {
 /** Délai d'attente court pour le polling (le backend doit être réactif). */
 const TIMEOUT_POLLING_MS = 4000;
 
+/**
+ * Délai généreux pour les mutations qui déclenchent des envois sortants
+ * (email SMTP + relais WhatsApp) : le backend peut légitimement dépasser
+ * 4 s alors qu'il a déjà envoyé l'OTP. Un timeout trop court fait croire à
+ * un échec alors que le patient a bien reçu le message.
+ */
+const TIMEOUT_MUTATION_MS = 30_000;
+
 /** Injecte le Bearer token de la session courante dans les en-têtes. */
 function avecAuthentification(headers: Headers): void {
   const session = obtenirSession();
   if (session?.acces_token) headers.set("Authorization", `Bearer ${session.acces_token}`);
+}
+
+/**
+ * Construit un signal d'abandon avec délai, sans planter sur les navigateurs
+ * qui ne connaissent pas `AbortSignal.timeout()` (iOS Safari < 15.4). Si la
+ * méthode n'existe pas, renvoie `undefined` : le fetch s'exécute sans timer,
+ * c'est un simple confort — jamais une cause d'échec.
+ */
+function signalAvecTimeout(timeoutMs: number): AbortSignal | null {
+  if (typeof AbortSignal !== "undefined" && typeof AbortSignal.timeout === "function") {
+    return AbortSignal.timeout(timeoutMs);
+  }
+  return null;
 }
 
 /** Tente de renouveler le jeton d'accès. Retourne faux (et déconnecte) sinon. */
@@ -50,7 +71,7 @@ async function tenterRafraichir(): Promise<boolean> {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ rafraichissement_token: session.rafraichissement_token }),
-      signal: AbortSignal.timeout(TIMEOUT_POLLING_MS),
+      signal: signalAvecTimeout(TIMEOUT_POLLING_MS),
     });
     if (!res.ok) {
       deconnecter();
@@ -65,17 +86,25 @@ async function tenterRafraichir(): Promise<boolean> {
   }
 }
 
-export async function fetchAPI<T>(path: string, init?: RequestInit, retente = false): Promise<T> {
+export async function fetchAPI<T>(
+  path: string,
+  init?: RequestInit,
+  retente = false,
+  timeoutMs = TIMEOUT_POLLING_MS,
+): Promise<T> {
   const headers = new Headers(init?.headers);
   avecAuthentification(headers);
+  // On extrait `signal` de init pour éviter que le spread ne réintroduise
+  // `undefined` (interdit par exactOptionalPropertyTypes).
+  const { signal: _s, ...rest } = init ?? {};
   const res = await fetch(`${BASE_URL}${path}`, {
-    signal: AbortSignal.timeout(TIMEOUT_POLLING_MS),
-    ...init,
+    ...rest,
+    signal: signalAvecTimeout(timeoutMs),
     headers,
   });
   // Jeton expiré : un seul refresh, puis une seule nouvelle tentative.
   if (res.status === 401 && !retente && (await tenterRafraichir())) {
-    return fetchAPI<T>(path, init, true);
+    return fetchAPI<T>(path, init, true, timeoutMs);
   }
   if (!res.ok) throw new ApiError(res.status, `API ${res.status} sur ${path}`);
   return (await res.json()) as T;
@@ -100,7 +129,7 @@ export async function uploadImage(
     method: "POST",
     body: form,
     headers,
-    signal: AbortSignal.timeout(30_000),
+    signal: signalAvecTimeout(30_000),
   });
   if (!res.ok) throw new ApiError(res.status, `API ${res.status} sur ${path}`);
   return (await res.json()) as ReponseRoutage;
@@ -131,11 +160,16 @@ export type ReponseEnTetePatient = {
 
 /** POST /routage/patient — crée (code AER-AAAA-NNNN) ou retrouve le patient. */
 export async function trouverOuCreerPatient(enTete: EnTetePatient): Promise<ReponseEnTetePatient> {
-  return fetchAPI<ReponseEnTetePatient>("/routage/patient", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(enTete),
-  });
+  return fetchAPI<ReponseEnTetePatient>(
+    "/routage/patient",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(enTete),
+    },
+    false,
+    TIMEOUT_MUTATION_MS,
+  );
 }
 
 /** Réponse de l'approbation : le patient reçoit son OTP par email et/ou WhatsApp. */
@@ -151,11 +185,16 @@ export type ReponseApprobation = {
  * sinon WhatsApp seul ; le lien de consultation reste dans chaque message).
  */
 export async function approuverExamen(codePatient: string): Promise<ReponseApprobation> {
-  return fetchAPI<ReponseApprobation>("/admin/examens/approuver", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ code_patient: codePatient }),
-  });
+  return fetchAPI<ReponseApprobation>(
+    "/admin/examens/approuver",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code_patient: codePatient }),
+    },
+    false,
+    TIMEOUT_MUTATION_MS,
+  );
 }
 
 /* ------------------------------- Types ------------------------------- */
@@ -357,11 +396,16 @@ export type ReponseConnexion = {
 
 /** POST /auth/connexion — email + mot de passe -> tokens + profil. */
 export async function connexion(email: string, motDePasse: string): Promise<ReponseConnexion> {
-  const data = await fetchAPI<ReponseConnexion>("/auth/connexion", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, mot_de_passe: motDePasse }),
-  });
+  const data = await fetchAPI<ReponseConnexion>(
+    "/auth/connexion",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, mot_de_passe: motDePasse }),
+    },
+    false,
+    TIMEOUT_MUTATION_MS,
+  );
   return data;
 }
 
@@ -413,11 +457,16 @@ export async function listerUtilisateurs(): Promise<UtilisateurAdmin[]> {
 export async function creerUtilisateur(
   requete: CreerUtilisateurRequete,
 ): Promise<UtilisateurAdmin> {
-  return fetchAPI<UtilisateurAdmin>("/admin/utilisateurs", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(requete),
-  });
+  return fetchAPI<UtilisateurAdmin>(
+    "/admin/utilisateurs",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(requete),
+    },
+    false,
+    TIMEOUT_MUTATION_MS,
+  );
 }
 
 /** PATCH /admin/utilisateurs/{id} — active/désactive un compte ou change son rôle. */
@@ -428,11 +477,16 @@ export async function modifierUtilisateur(
     mot_de_passe?: string;
   },
 ): Promise<unknown> {
-  return fetchAPI(`/admin/utilisateurs/${id}`, {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(changements),
-  });
+  return fetchAPI(
+    `/admin/utilisateurs/${id}`,
+    {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(changements),
+    },
+    false,
+    TIMEOUT_MUTATION_MS,
+  );
 }
 
 export async function listerPatients(): Promise<PatientAdmin[]> {
@@ -440,26 +494,43 @@ export async function listerPatients(): Promise<PatientAdmin[]> {
 }
 
 export async function creerPatient(requete: CreerPatientRequete): Promise<PatientAdmin> {
-  return fetchAPI<PatientAdmin>("/admin/patients", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(requete),
-  });
+  return fetchAPI<PatientAdmin>(
+    "/admin/patients",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(requete),
+    },
+    false,
+    TIMEOUT_MUTATION_MS,
+  );
 }
 
 export async function renvoyerOtp(
   idPatient: number,
 ): Promise<{ statut: string; canal: string; contact?: string }> {
-  return fetchAPI(`/admin/patients/${idPatient}/renvoyer-otp`, { method: "POST" });
+  return fetchAPI(
+    `/admin/patients/${idPatient}/renvoyer-otp`,
+    { method: "POST" },
+    false,
+    TIMEOUT_MUTATION_MS,
+  );
 }
 
 /* ------------------------------- Accès patient --------------------------- */
 
-/** Un examen avec ses verdicts, tel que rendu au patient. */
+/** Un diagnostic (une analyse) avec ses verdicts, tel que rendu au patient.
+ *  Un OTP ne délivre qu'UN compte rendu : la dernière analyse du patient
+ *  (voir dernier-resultat.ts). Plusieurs diagnostics peuvent historiquement
+ *  partager le même id_examen — le backend borne déjà sa réponse à un seul. */
 export type ResultatOtp = {
   id_diagnostic: string;
+  id_examen?: number;
   code_examen?: string;
+  nom_fichier?: string;
   execute_le?: string;
+  /** Clé effectivement renvoyée par le backend (execute_le est l'ancien nom). */
+  horodatage?: string;
   resultats: Array<{
     pathologie: string;
     prediction: string;
@@ -483,14 +554,19 @@ export async function verifierOtp(
   codeOtp: string,
   contact: { email?: string; telephone?: string },
 ): Promise<ReponseAccesResultat> {
-  const data = await fetchAPI<ReponseAccesResultat>("/acces-resultat", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      code_otp: codeOtp,
-      email: contact.email ?? null,
-      telephone: contact.telephone ?? null,
-    }),
-  });
+  const data = await fetchAPI<ReponseAccesResultat>(
+    "/acces-resultat",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        code_otp: codeOtp,
+        email: contact.email ?? null,
+        telephone: contact.telephone ?? null,
+      }),
+    },
+    false,
+    TIMEOUT_MUTATION_MS,
+  );
   return data;
 }

@@ -4,7 +4,7 @@ Pas d'authentification requise : le code OTP + le contact (email ou numero
 WhatsApp) suffisent. Le code est consomme a la premiere utilisation.
 """
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
 from app import persistance
@@ -19,24 +19,20 @@ class AccesResultatRequete(BaseModel):
     telephone: str | None = None
 
 
-@routeur_acces.post("/acces-resultat")
-async def acceder_resultat(requete: AccesResultatRequete) -> dict:
-    """Valide un OTP et retourne les resultats du patient."""
+async def _verifier_et_renvoyer(code_otp: str, email: str | None, telephone: str | None) -> dict:
+    """Logique commune de vérification OTP (POST et GET)."""
     if not persistance.active():
         raise HTTPException(status_code=503, detail="Base de donnees indisponible")
 
-    if not requete.email and not requete.telephone:
+    if not email and not telephone:
         raise HTTPException(
             status_code=422,
             detail="Email ou telephone requis pour verifier un OTP",
         )
 
-    # L'adresse de destination stockée sur le code est le contact qui l'a
-    # reçu (email ou numéro WhatsApp normalisé) : on cherche donc la même
-    # forme que celle saisie.
-    destination = requete.email or normaliser_numero(requete.telephone or "")
+    destination = email or normaliser_numero(telephone or "")
     patient = await persistance.verifier_et_consommer_otp(
-        code=requete.code_otp,
+        code=code_otp,
         destination=destination,
     )
 
@@ -55,3 +51,23 @@ async def acceder_resultat(requete: AccesResultatRequete) -> dict:
         },
         "resultats": resultats,
     }
+
+
+@routeur_acces.post("/acces-resultat")
+async def acceder_resultat(requete: AccesResultatRequete) -> dict:
+    """Valide un OTP et retourne les resultats du patient (POST)."""
+    return await _verifier_et_renvoyer(requete.code_otp, requete.email, requete.telephone)
+
+
+@routeur_acces.get("/acces-resultat")
+async def acceder_resultat_get(
+    code_otp: str = Query(...),
+    email: str | None = Query(None),
+    telephone: str | None = Query(None),
+) -> dict:
+    """Valide un OTP et retourne les resultats du patient (GET).
+
+    Variante GET pour les navigateurs mobiles qui ne parviennent pas a envoyer
+    de POST via le proxy Tailscale Funnel (Safari iOS).
+    """
+    return await _verifier_et_renvoyer(code_otp, email, telephone)

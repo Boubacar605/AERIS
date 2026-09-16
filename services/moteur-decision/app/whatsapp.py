@@ -23,9 +23,10 @@ _logger = logging.getLogger("aeris.whatsapp")
 def normaliser_numero(telephone: str) -> str:
     """Normalise un numero vers le format international WhatsApp (sans +).
 
-    - retire espaces, points, tirets et slashes ;
-    - prefixe par le prefixe pays si le numero ne commence pas deja par
-      le prefixe ou par ``+``.
+    - retire espaces, points, tirets, slashes et le ``+`` ;
+    - retire l'indicatif national (``0`` initial des numeros locaux sénégalais)
+      avant d'ajouter le prefixe pays ;
+    - prefixe par le prefixe pays si le numero ne commence pas deja par lui.
     """
     chiffres = re.sub(r"[^\d]", "", telephone or "")
     if not chiffres:
@@ -33,6 +34,9 @@ def normaliser_numero(telephone: str) -> str:
 
     prefixe = config.whatsapp_prefixe_pays or ""
     if prefixe and not chiffres.startswith(prefixe):
+        # Numero local (0X XX XX XX XX) : on retire le 0 avant le prefixe pays.
+        if chiffres.startswith("0"):
+            chiffres = chiffres[1:]
         chiffres = f"{prefixe}{chiffres}"
     return chiffres
 
@@ -54,9 +58,10 @@ def composer_message_otp(
         f"AERIS — Résultats radiologiques\n\n"
         f"Bonjour {nom},\n\n"
         f"Votre examen radiologique vient d'être analysé.\n\n"
-        f"Code de consultation : {code_otp}\n\n"
-        f"Ce code est valable {config.otp_ttl_minutes} minutes.\n"
-        f"Rendez-vous sur {url}/resultat et saisissez votre numéro puis ce code.\n\n"
+        f"Pour consulter vos résultats, ouvrez le lien ci-dessous :\n"
+        f"{url}/resultat?otp={code_otp}\n\n"
+        f"Code de consultation : {code_otp}\n"
+        f"Ce code est valable {config.otp_ttl_minutes} minutes.\n\n"
         f"──\n"
         f"AERIS — Radiologie Adaptative Edge-Cloud (UADB)"
     )

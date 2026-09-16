@@ -181,7 +181,7 @@ services:
     ports:
       - "${RELAY_WHATSAPP_PORT:-3500}:3500"
     volumes:
-      - aeris-whatsapp-session:/app/auth_info
+      - aeris-whatsapp-session:/app/.wwebjs_auth
     profiles:
       - cloud
       - edge

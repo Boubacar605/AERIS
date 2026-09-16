@@ -728,12 +728,16 @@ async def generer_et_stocker_otp(
 async def verifier_et_consommer_otp(code: str, destination: str) -> Patient | None:
     """Verifie un OTP (non expire, non utilise, tentatives < max).
 
-    ``destination`` est le contact saisi par le patient : email ou numero
-    WhatsApp selon le canal qui a recu le code.
+    Le code est identifie par son empreinte (chaque code est unique) ; le
+    contact saisi par le patient ne sert qu'a confirmer qu'il est bien le
+    destinataire. Il doit correspondre a la destination stockee (le canal
+    reellement notifie) OU a l'autre contact du patient (meme code envoye
+    sur email ET WhatsApp, une seule destination stockee).
     Retourne le Patient associe si valide, None sinon.
     Le code est consomme (utilise_le mis a jour) en cas de succes.
     """
     from app.otp import hacher_otp as _hacher
+    from app.whatsapp import normaliser_numero as _normaliser_numero
 
     code_hash = _hacher(code)
 
@@ -743,13 +747,24 @@ async def verifier_et_consommer_otp(code: str, destination: str) -> Patient | No
                 text(
                     "SELECT id_otp, id_patient, code_hash, expire_le, "
                     "       tentatives, utilise_le, email_destination "
-                    "FROM otp_codes WHERE email_destination = :destination "
+                    "FROM otp_codes WHERE code_hash = :code_hash "
                     "ORDER BY id_otp DESC LIMIT 1"
                 ),
-                {"destination": destination},
+                {"code_hash": code_hash},
             )
             ligne = resultat.first()
             if ligne is None:
+                # Code inconnu : on borne malgre tout les tentatives sur ce
+                # contact (meme comportement qu'une mauvaise saisie ciblee).
+                await session.execute(
+                    text(
+                        "UPDATE otp_codes SET tentatives = tentatives + 1 "
+                        "WHERE id_otp = (SELECT id_otp FROM otp_codes "
+                        "WHERE email_destination = :destination "
+                        "ORDER BY id_otp DESC LIMIT 1)"
+                    ),
+                    {"destination": destination},
+                )
                 return None
 
             id_otp, id_patient, hash_db, expire_le, tentatives, utilise_le, email_dest = ligne
@@ -769,8 +784,20 @@ async def verifier_et_consommer_otp(code: str, destination: str) -> Patient | No
             if now > expire_le:
                 return None
 
-            # Mauvais code
-            if hash_db != code_hash:
+            # Le contact saisi doit appartenir au patient destinataire
+            patient = await session.get(Patient, id_patient)
+            if patient is None:
+                return None
+            telephone_normalise = (
+                _normaliser_numero(patient.telephone) if getattr(patient, "telephone", None) else ""
+            )
+            saisi = str(destination or "").strip().lower()
+            contacts_patient = {
+                str(email_dest or "").strip().lower(),
+                str(patient.email or "").strip().lower(),
+                str(telephone_normalise or "").strip(),
+            }
+            if saisi not in contacts_patient:
                 await session.execute(
                     text("UPDATE otp_codes SET tentatives = tentatives + 1 WHERE id_otp = :id"),
                     {"id": id_otp},
@@ -783,22 +810,28 @@ async def verifier_et_consommer_otp(code: str, destination: str) -> Patient | No
                 {"id": id_otp},
             )
 
-            return await session.get(Patient, id_patient)
+            return patient
 
 
 async def obtenir_resultats_par_patient(id_patient: int) -> list[dict]:
-    """Recupere les resultats diagnostiques d'un patient via ses examens."""
+    """Recupere le resultat de la DERNIERE analyse d'un patient.
+
+    Un code OTP n'ouvre qu'un unique compte rendu, comme un etablissement de
+    sante delivre le resultat d'une consultation : on ne renvoie donc que le
+    diagnostic le plus recent (id le plus eleve), sans le repertoire complet
+    des examens du patient.
+    """
     if not _sessions:
         return []
     async with _sessions() as session:
         resultat = await session.execute(
             text(
                 "SELECT d.id_diagnostic, d.execute_le, d.destination_choisie, "
-                "       e.nom_fichier, e.code_examen "
+                "       e.id_examen, e.nom_fichier, e.code_examen "
                 "FROM diagnostics d "
                 "JOIN examens_image e ON d.id_examen = e.id_examen "
                 "WHERE e.id_patient = :id_patient "
-                "ORDER BY d.id_diagnostic DESC LIMIT 20"
+                "ORDER BY d.id_diagnostic DESC LIMIT 1"
             ),
             {"id_patient": id_patient},
         )
@@ -821,10 +854,11 @@ async def obtenir_resultats_par_patient(id_patient: int) -> list[dict]:
             resultats.append(
                 {
                     "id_diagnostic": id_diag,
+                    "id_examen": diag[3],
                     "horodatage": _iso(diag[1]),
                     "destination": diag[2],
-                    "nom_fichier": diag[3],
-                    "code_examen": diag[4],
+                    "nom_fichier": diag[4],
+                    "code_examen": diag[5],
                     "resultats": [
                         {
                             "pathologie": r[0],

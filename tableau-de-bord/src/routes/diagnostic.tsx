@@ -894,11 +894,11 @@ function DiagnosticContent() {
         {resultat ? (
           <>
             <Panel
-              title="Clinical results"
+              title="Résultats cliniques"
               subtitle={`Analyse réelle — ${resultat.resultats.length} pathologie${resultat.resultats.length > 1 ? "s" : ""}`}
               actions={
                 <Tag tone="ok">
-                  <StatusDot tone="ok" /> completed
+                  <StatusDot tone="ok" /> terminé
                 </Tag>
               }
             >

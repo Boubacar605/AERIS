@@ -80,8 +80,8 @@ export function useServiceHealthLive(intervalMs = 8000): {
 
 /* ------------------- Conversion des réponses du moteur ------------------- */
 
-const SERVICE_PN = "Pneumonia Classifier" as const;
-const SERVICE_TB = "TB Classifier" as const;
+const SERVICE_PN = "Classificateur Pneumonie" as const;
+const SERVICE_TB = "Classificateur Tuberculose" as const;
 
 /** Convertit un diagnostic du moteur vers les lignes d'activité de l'UI. */
 function mapDiagnosticVersRecords(d: DiagnosticHistorique): InferenceRecord[] {
@@ -90,9 +90,9 @@ function mapDiagnosticVersRecords(d: DiagnosticHistorique): InferenceRecord[] {
     const finding =
       r.prediction === "positif"
         ? pathologieTB
-          ? "Tuberculosis suspected"
-          : "Pneumonia suspected"
-        : "Normal study";
+          ? "Suspicion de tuberculose"
+          : "Suspicion de pneumonie"
+        : "Examen normal";
     return {
       id: d.id,
       time: new Date(d.horodatage.replace("T", " ")).toTimeString().slice(0, 8),

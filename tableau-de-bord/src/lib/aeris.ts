@@ -27,7 +27,7 @@ export type Telemetry = {
 export type InferenceRecord = {
   id: number;
   time: string;
-  service: "TB Classifier" | "Pneumonia Classifier";
+  service: "Classificateur Tuberculose" | "Classificateur Pneumonie";
   confidence: number;
   target: Target;
   latencyMs: number;

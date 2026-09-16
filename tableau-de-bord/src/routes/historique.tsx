@@ -167,11 +167,11 @@ function HistoryPage() {
                           <td className="px-4 py-2">
                             {r.status === "completed" ? (
                               <span className="flex items-center gap-1.5 text-ok">
-                                <CheckCircle2 className="size-3.5" /> Completed
+                                <CheckCircle2 className="size-3.5" /> Terminé
                               </span>
                             ) : (
                               <span className="flex items-center gap-1.5 text-alert">
-                                <XCircle className="size-3.5" /> Failed
+                                <XCircle className="size-3.5" /> Échec
                               </span>
                             )}
                           </td>

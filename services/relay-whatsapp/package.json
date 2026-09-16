@@ -1,8 +1,8 @@
 {
   "name": "aeris-relay-whatsapp",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "private": true,
-  "description": "Relais WhatsApp AERIS — envoi d'OTP via le protocole WhatsApp Web (Baileys)",
+  "description": "Relais WhatsApp AERIS — envoi d'OTP via whatsapp-web.js (Puppeteer)",
   "main": "src/serveur.js",
   "scripts": {
     "start": "node src/serveur.js"
@@ -11,7 +11,7 @@
     "node": ">=20"
   },
   "dependencies": {
-    "@whiskeysockets/baileys": "^6.7.19",
+    "whatsapp-web.js": "^1.26.0",
     "pino": "^9.7.0",
     "qrcode-terminal": "^0.12.0"
   }

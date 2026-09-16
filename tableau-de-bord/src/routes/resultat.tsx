@@ -24,7 +24,6 @@ import {
   approuverExamen,
   type ReponseAccesResultat,
   type ReponseApprobation,
-  verifierOtp,
 } from "@/lib/api";
 import { genererCompteRendu, type ToneFiabilite } from "@/lib/compte-rendu";
 import { genererPdfClinique } from "@/lib/export-pdf";
@@ -35,8 +34,11 @@ import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/resultat")({
   validateSearch: (search: Record<string, unknown>): { otp?: string } => {
+    // TanStack Search peut restituer un paramètre répété sous forme de tableau
+    // après hydration SSR ; on normalise TOUJOURS vers une string avant usage.
     const bruto = search["otp"];
-    const otp = typeof bruto === "string" && bruto.length > 0 ? bruto : undefined;
+    const brut = Array.isArray(bruto) ? bruto[0] : bruto;
+    const otp = typeof brut === "string" && brut.length > 0 ? brut : undefined;
     return otp ? { otp } : {};
   },
   // Le mode patient (?otp=…) est public ; la vue clinicien exige ce rôle.
@@ -77,11 +79,88 @@ function ResultatPage() {
 
 /* ------------------------------ Mode patient ------------------------------ */
 
+type ContactOtp = { email?: string; telephone?: string };
+
+/**
+ * Construit l'URL de vérification OTP (GET avec paramètres query).
+ *
+ * Le GET fonctionne de manière plus fiable que le POST sur les navigateurs
+ * mobiles à travers le proxy Tailscale Funnel (Safari iOS bloque certains
+ * POST sortants). Le code OTP est déjà visible dans l'URL du lien reçu par
+ * le patient, donc l'ajout des paramètres query n'affecte pas la sécurité.
+ */
+function urlVerificationOtp(codeOtp: string, contact: ContactOtp): string {
+  const params = new URLSearchParams({ code_otp: codeOtp });
+  if (contact.email) params.set("email", contact.email);
+  if (contact.telephone) params.set("telephone", contact.telephone);
+  return `${window.location.origin}/api/acces-resultat?${params}`;
+}
+
+/**
+ * Vérification OTP en fetch GET minimal — volontairement SANS le wrapper
+ * fetchAPI (pas de Headers, pas d'AbortSignal.timeout) : le flux patient est
+ * public (aucun jeton requis) et le GET est le plus compatible avec les
+ * navigateurs de téléphone, même WebView.
+ */
+async function verifierOtpBrut(
+  codeOtp: string,
+  contact: ContactOtp,
+): Promise<ReponseAccesResultat> {
+  const url = urlVerificationOtp(codeOtp, contact);
+  const res = await fetch(url);
+  if (!res.ok) {
+    const brut = (await res.json().catch(() => ({}))) as { detail?: string };
+    throw new ApiError(res.status, brut.detail ?? `API ${res.status}`);
+  }
+  return (await res.json()) as ReponseAccesResultat;
+}
+
+/** Repli XMLHttpRequest GET : certains navigateurs WebKit bloquent fetch. */
+function verifierOtpViaXhr(codeOtp: string, contact: ContactOtp): Promise<ReponseAccesResultat> {
+  const url = urlVerificationOtp(codeOtp, contact);
+  return new Promise((resoudre, rejeter) => {
+    const xhr = new XMLHttpRequest();
+    try {
+      xhr.open("GET", url);
+    } catch (ex) {
+      rejeter(ex instanceof Error ? ex : new TypeError("open invalide"));
+      return;
+    }
+    xhr.timeout = 35_000;
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try {
+          resoudre(JSON.parse(xhr.responseText) as ReponseAccesResultat);
+        } catch {
+          rejeter(new ApiError(0, "Réponse illisible"));
+        }
+        return;
+      }
+      let detail: string | null = null;
+      try {
+        detail = (JSON.parse(xhr.responseText) as { detail?: string }).detail ?? null;
+      } catch {
+        /* réponse non JSON */
+      }
+      rejeter(new ApiError(xhr.status, detail ?? `API ${xhr.status}`));
+    };
+    xhr.onerror = () => {
+      rejeter(new TypeError("echec reseau XHR"));
+    };
+    xhr.ontimeout = () => {
+      rejeter(new DOMException("timeout", "TimeoutError"));
+    };
+    xhr.send();
+  });
+}
+
 function PatientOtpHub() {
   const { otp } = Route.useSearch();
   const [canal, setCanal] = useState<"email" | "whatsapp">("email");
   const [contact, setContact] = useState("");
-  const [code, setCode] = useState(otp ?? "");
+  // String() en dernier rempart : garde-fou contre une valeur non-string
+  // (tableau d'un élément) après hydration SSR de TanStack Start.
+  const [code, setCode] = useState(typeof otp === "string" ? otp : String(otp ?? ""));
   const [enCours, setEnCours] = useState(false);
   const [erreur, setErreur] = useState<string | null>(null);
   const [donnees, setDonnees] = useState<ReponseAccesResultat | null>(null);
@@ -90,21 +169,50 @@ function PatientOtpHub() {
     e.preventDefault();
     setEnCours(true);
     setErreur(null);
+
+    // ── Sonde de connectivité GET ──
+    const urlSante = `${window.location.origin}/api/sante`;
     try {
-      const contactPayload: { email?: string; telephone?: string } = {};
-      if (canal === "email") {
-        contactPayload.email = contact.trim().toLowerCase();
-      } else {
-        contactPayload.telephone = contact.trim();
+      await fetch(urlSante, { method: "GET" });
+    } catch {
+      setErreur("Impossible de joindre AERIS. Vérifiez votre connexion Internet puis réessayez.");
+      setEnCours(false);
+      return;
+    }
+
+    const contactPayload: { email?: string; telephone?: string } = {};
+    if (canal === "email") {
+      contactPayload.email = contact.trim().toLowerCase();
+    } else {
+      contactPayload.telephone = contact.trim();
+    }
+
+    try {
+      let resultat: ReponseAccesResultat;
+      // String() : TanStack Search peut retourner un tableau/string braqué
+      // côté SSR, provoquant « a.trim is not a function » chez certains
+      // navigateurs. Forcer un string avant chaque utilisation.
+      const codeTexte = String(code ?? "").trim();
+      try {
+        // fetch GET minimal (pas de wrapper, pas d'AbortSignal) — le GET est
+        // plus fiable que le POST sur Safari iOS à travers le funnel Tailscale.
+        resultat = await verifierOtpBrut(codeTexte, contactPayload);
+      } catch (ex) {
+        if (!(ex instanceof TypeError)) throw ex;
+        // Repli XMLHttpRequest GET : certains WebKit bloquent fetch.
+        resultat = await verifierOtpViaXhr(codeTexte, contactPayload);
       }
-      const resultat = await verifierOtp(code.trim(), contactPayload);
       setDonnees(resultat);
     } catch (ex) {
-      setErreur(
-        ex instanceof ApiError && ex.status === 401
-          ? "Code OTP invalide, expiré ou déjà utilisé. Vérifiez le contact et le code reçu."
-          : "Le service est momentanément indisponible. Réessayez dans un instant.",
-      );
+      const detail =
+        ex instanceof ApiError
+          ? ex.status === 401
+            ? "Code OTP invalide, expiré ou déjà utilisé. Vérifiez le code reçu et le numéro (ou l'email) que vous avez indiqués."
+            : `Le serveur a rencontré une erreur (${ex.status}). Réessayez dans un instant.`
+          : ex instanceof DOMException && ex.name === "TimeoutError"
+            ? "Le serveur met trop de temps à répondre. Réessayez dans un instant."
+            : "Impossible d'envoyer la demande. Vérifiez votre connexion Internet puis réessayez.";
+      setErreur(detail);
     } finally {
       setEnCours(false);
     }
@@ -487,6 +595,24 @@ function ResultatContent() {
                           </>
                         )}{" "}
                         Le patient peut consulter ses résultats via l'OTP.
+                      </span>
+                    </p>
+                  )}
+                  {approbation && approbation.statut === "echec_envoi" && (
+                    <p className="flex items-start gap-2 rounded-md border border-alert/40 bg-alert-soft/40 p-3 text-xs text-alert">
+                      <ShieldAlert className="mt-0.5 size-3.5 shrink-0 text-alert" />
+                      <span>
+                        <span className="font-semibold text-alert">Échec de l'envoi OTP</span> — le
+                        patient n'a pas pu être joint (canal :{" "}
+                        {approbation.canal === "email+whatsapp"
+                          ? "email et WhatsApp"
+                          : approbation.canal === "whatsapp"
+                            ? "WhatsApp"
+                            : approbation.canal === "email"
+                              ? "email"
+                              : "aucun"}
+                        ). Vérifiez la connectivité du relais WhatsApp et du serveur SMTP, puis
+                        réessayez.
                       </span>
                     </p>
                   )}
