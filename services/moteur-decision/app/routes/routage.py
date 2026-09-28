@@ -15,7 +15,6 @@ from app.logique_routage.registre_diagnostics import (
     incrementer_compteur,
 )
 from app.logique_routage.selecteur_edge_cloud import decider_destination
-from app.notification import envoyer_notification_resultat
 from app.schemas.schemas_routage import ReponseRoutage
 from app.whatsapp import normaliser_numero
 
