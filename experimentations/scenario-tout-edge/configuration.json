@@ -3,8 +3,11 @@
   "mode_routage": "edge",
   "nb_repetitions": 10,
   "delai_entre_requetes_ms": 500,
-  "description": "Traitement 100% local — risque de saturation",
+  "description": "Traitement 100% local — risque de saturation (second avis desactive : aucun appel vers l'autre source)",
   "profils_charge": [
-    {"profil": "stable", "duree_secondes": 0}
+    {
+      "profil": "stable",
+      "duree_secondes": 0
+    }
   ]
 }

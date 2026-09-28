@@ -31,7 +31,7 @@ INSERT INTO versions_configuration (
 )
 VALUES (
     'Version initiale 2026',
-    75, 85, 100,
+    80, 85, 100,
     0.75, 0.60,
     true,
     0.9, 1.1, 1.1,

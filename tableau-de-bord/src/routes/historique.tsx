@@ -38,7 +38,11 @@ export const Route = createFileRoute("/historique")({
 function HistoryPage() {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<"all" | "edge" | "cloud">("all");
-  const { records, statistiques, etat, charger } = useHistoriqueLive();
+  // La page est une consultation d'archive, pas une vue temps réel : on
+  // interroge le journal durable (200 diagnostics) à un rythme calme pour
+  // remonter au-delà de la fenêtre mémoire de 100 entrées du moteur, sans
+  // multiplier le trafic sur une connexion faible.
+  const { records, statistiques, etat, charger } = useHistoriqueLive(10000, 200);
 
   const rows = useMemo(
     () =>

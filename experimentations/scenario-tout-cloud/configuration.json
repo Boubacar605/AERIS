@@ -3,8 +3,11 @@
   "mode_routage": "cloud",
   "nb_repetitions": 10,
   "delai_entre_requetes_ms": 500,
-  "description": "Envoi systematique au Cloud — vulnerabilite reseau",
+  "description": "Envoi systematique au Cloud — vulnerabilite reseau (second avis desactive : aucun appel vers l'autre source)",
   "profils_charge": [
-    {"profil": "stable", "duree_secondes": 0}
+    {
+      "profil": "stable",
+      "duree_secondes": 0
+    }
   ]
 }

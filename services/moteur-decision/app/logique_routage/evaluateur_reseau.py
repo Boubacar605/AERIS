@@ -33,6 +33,8 @@ async def mesurer_latence_cloud() -> float:
 async def verifier_connectivite_cloud() -> bool:
     """Verifie si les services Cloud sont joignables."""
     url = f"{config.url_service_tb_cloud}/sante"
+
+    
     try:
         async with httpx.AsyncClient(timeout=TIMEOUT_CONNECTIVITE) as client:
             reponse = await client.get(url)

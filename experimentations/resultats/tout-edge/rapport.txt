@@ -1,0 +1,72 @@
+============================================================
+RAPPORT D'EXPERIMENTATION — TOUT-EDGE
+============================================================
+
+Requetes totales : 200
+  - Reussies : 200
+  - En erreur : 0
+  - Routees Edge : 200
+  - Routees Cloud : 0
+
+--- LATENCE END-TO-END (ms) ---
+  Moyenne  : 126.41
+  Mediane  : 123.65
+  Ecart-type : 22.43
+  P95      : 149.32
+  P99      : 198.26
+  Min      : 97.95
+  Max      : 370.00
+  Echantillons : 200
+
+--- TEMPS D'INFERENCE TUBERCULOSE (ms) ---
+  Moyenne  : 62.27
+  Mediane  : 61.31
+  Ecart-type : 4.71
+  P95      : 69.14
+  P99      : 74.35
+  Min      : 53.58
+  Max      : 90.99
+  Echantillons : 100
+
+--- TEMPS D'INFERENCE PNEUMONIE (ms) ---
+  Moyenne  : 68.41
+  Mediane  : 64.43
+  Ecart-type : 26.84
+  P95      : 84.85
+  P99      : 101.72
+  Min      : 52.40
+  Max      : 314.51
+  Echantillons : 100
+
+--- CPU EDGE (%) ---
+  Moyenne  : 7.00
+  Mediane  : 8.53
+  Ecart-type : 6.62
+  P95      : 14.61
+  P99      : 15.63
+  Min      : 0.16
+  Max      : 19.71
+  Echantillons : 200
+
+--- RAM EDGE (%) ---
+  Moyenne  : 61.45
+  Mediane  : 61.83
+  Ecart-type : 0.95
+  P95      : 62.74
+  P99      : 63.07
+  Min      : 57.47
+  Max      : 63.11
+  Echantillons : 200
+
+--- PRECISION TUBERCULOSE : 80.0% ---
+--- PRECISION PNEUMONIE : 90.0% ---
+
+
+NOTE METHODOLOGIQUE :
+Ce jeu de demonstration utilise 10 images par pathologie (20 au total),
+issus de jeux de test publics (Shenzhen/Montgomery pour TB,
+Chest X-Ray Kaggle pour PN). Les resultats montrent le comportement
+architectural du systeme (routage, bascule, latence) mais ne constituent
+pas une evaluation clinique de la precision des modeles. Pour une
+evaluation publication, un echantillon de 100+ images par classe avec
+balance des classes serait necessaire.

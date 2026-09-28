@@ -69,7 +69,8 @@
   --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
   --shadow-panel: 0 1px 2px oklch(0.2 0.05 260 / 0.05), 0 8px 24px -16px oklch(0.2 0.05 260 / 0.25);
-  --shadow-raise: 0 2px 4px oklch(0.2 0.05 260 / 0.06), 0 18px 40px -22px oklch(0.2 0.05 260 / 0.35);
+  --shadow-raise:
+    0 2px 4px oklch(0.2 0.05 260 / 0.06), 0 18px 40px -22px oklch(0.2 0.05 260 / 0.35);
   --animate-flow: flow 2.4s linear infinite;
   --animate-breathe: breathe 3s ease-in-out infinite;
   --animate-rise: rise 0.4s ease-out both;
@@ -228,4 +229,33 @@
   h3 {
     letter-spacing: -0.015em;
   }
+}
+
+/**
+ * Teintes de marque du tableau de bord du poste.
+ *
+ * Deux teintes appartiennent au poste : le bleu `#00b4d8` et
+ * le rouge `#DB4437`. Ambre et verts restent ceux de l'application.
+ *
+ * Le poste n'ajoute aucun *token* : il redéfinit `--cloud` et `--alert` sur
+ * son seul sous-arbre, ce qui fait suivre ces deux hex à tous les utilitaires
+ * déjà existants : les couleurs de texte, de fond, les bordures en
+ * opacité, et les `var(--cloud)` / `var(--alert)` des graphiques Recharts —
+ * sans les dupliquer.
+ *
+ * La redéfinition est locale à la page : `:root` conserve les teintes
+ * d'origine, donc le reste de l'application, le badge de rôle et le centre de
+ * contrôle gardent leurs nuances. C'est le seul endroit du dépôt où des tons
+ * sont surchargés, et c'est volontaire.
+ *
+ * Les variantes `-soft` suivent leur teinte, sinon le fond d'un `Tag` trahirait
+ * un mélange de deux bleus ou de deux rouges. Le thème sombre n'étant pas
+ * activé (`<html>` sans classe `dark`), les variantes sombres ne sont pas
+ * écrites ; elles le seront le jour où il le sera.
+ */
+.poste-teinte {
+  --cloud: #00b4d8;
+  --cloud-soft: #e0f6fa;
+  --alert: #db4437;
+  --alert-soft: #fbe9e7;
 }

@@ -59,3 +59,52 @@ FROM modeles_ia m
 LEFT JOIN resultats_pathologiques rp ON rp.id_modele = m.id_modele
 GROUP BY m.id_modele
 ORDER BY m.identifiant_code;
+-- ---------------------------------------------------------------------------
+-- Vague 1 — etat courant de validation d'un examen
+-- ---------------------------------------------------------------------------
+-- DISTINCT ON garde la derniere decision ; l'historique complet reste lisible
+-- dans validations_cliniques.
+CREATE OR REPLACE VIEW v_etat_validation AS
+SELECT DISTINCT ON (v.id_examen)
+       v.id_examen,
+       v.id_validation,
+       v.statut,
+       v.note_clinique,
+       v.motif_desaccord,
+       v.cree_le,
+       u.email AS decide_par
+FROM validations_cliniques v
+LEFT JOIN utilisateurs u ON u.id_utilisateur = v.id_utilisateur
+ORDER BY v.id_examen, v.id_validation DESC;
+
+-- Agregats de la file de triage (Vague 2). Une seule requete pour la page
+-- Statistiques : sans elle, le compte des examens en attente obligerait a
+-- charger toute la file en memoire pour la compter.
+-- « sans_decision » = aucune ligne dans validations_cliniques : les examens
+-- anterieurs a la Vague 1 y sont donc comptes, ce qui est la realite du poste.
+CREATE OR REPLACE VIEW v_protocole_validation AS
+SELECT
+    (SELECT COUNT(DISTINCT d.id_examen)
+       FROM diagnostics d
+      WHERE d.statut = 'completed')                                        AS examens_analyses,
+    (SELECT COUNT(*) FROM v_etat_validation WHERE statut = 'approuve')     AS examens_approuves,
+    (SELECT COUNT(*) FROM v_etat_validation WHERE statut = 'desapprouve')  AS examens_desapprouves,
+    (SELECT COUNT(*) FROM v_etat_validation WHERE statut = 'en_attente')   AS examens_en_attente,
+    (SELECT COUNT(DISTINCT d.id_examen)
+       FROM diagnostics d
+      WHERE d.statut = 'completed'
+        AND NOT EXISTS (SELECT 1 FROM v_etat_validation v
+                         WHERE v.id_examen = d.id_examen
+                           AND v.statut = 'approuve'))                     AS examens_non_approuves,
+    (SELECT COUNT(*) FROM validations_cliniques)                          AS decisions_journalisees,
+    (SELECT COUNT(*) FROM otp_codes WHERE revoque_le IS NOT NULL)          AS otp_revoques,
+    (SELECT COUNT(*) FROM suivis_cliniques WHERE statut = 'planifie')     AS controles_a_venir,
+    (SELECT COALESCE(ROUND(AVG(EXTRACT(EPOCH FROM (v.cree_le - d.execute_le)) / 3600), 1), 0)
+       FROM validations_cliniques v
+       JOIN diagnostics d ON d.id_examen = v.id_examen)                   AS delai_moyen_heures;
+
+COMMENT ON VIEW v_protocole_validation IS
+    'Agregats de la Vague 2 : volumetrie de la file, decisions, revocations, '
+    'controles a venir et delai moyen de validation en heures (moyenne, pas '
+    'mediane : le calcul exact d''une mediane sur un DISTINCT ON par examen '
+    'n''apporte rien a l''echelle d''un poste de travail).';

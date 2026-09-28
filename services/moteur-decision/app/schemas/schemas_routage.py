@@ -18,6 +18,14 @@ class DecisionRoutage(BaseModel):
     destination: str = Field(description="Destination choisie : 'edge' ou 'cloud'")
     raison: str = Field(description="Justification de la decision")
     metriques: MetriquesSysteme = Field(description="Metriques au moment de la decision")
+    second_avis: bool = Field(
+        default=True,
+        description=(
+            "Second avis (controle qualite Edge <-> Cloud) autorise. Faux quand "
+            "la destination est forcee : le verdict provient alors de la seule "
+            "source imposee, ce qui rend la mesure de scenario exploitable."
+        ),
+    )
 
 
 class ResultatDiagnostic(BaseModel):
@@ -122,4 +130,11 @@ class ReponseRoutage(BaseModel):
     filtrage: FiltrageSpecialistes | None = Field(
         default=None,
         description="Profilage image et triage des specialistes",
+    )
+    # Poignee de l'examen enregistre : c'est elle que la page Resultat adresse
+    # pour approuver, desapprover ou programmer un suivi (Vague 1). None si la
+    # base est indisponible — l'analyse est alors servie sans persistance.
+    id_examen: int | None = Field(
+        default=None,
+        description="Identifiant de l'examen enregistre, null si non persiste",
     )

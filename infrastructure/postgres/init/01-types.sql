@@ -29,3 +29,14 @@ CREATE TYPE t_decision_escalade AS ENUM (
     'arbitrage_conserve_initial',
     'escalade_impossible'
 );
+-- Issue d'un controle a venir (Vague 1)
+CREATE TYPE t_statut_suivi AS ENUM ('planifie', 'realise', 'annule');
+
+-- Decision du clinicien sur un examen (Vague 1). « en_attente » n'est cree que
+-- par une decision explicite du soignant : l'absence de ligne vaut deja
+-- « a valider ».
+CREATE TYPE t_statut_validation AS ENUM ('en_attente', 'approuve', 'desapprouve');
+
+-- Roles applicatifs (Vague 1 : ces types manquaient aussi a l'init, ils etaient
+-- crees par create_all). Aligne sur app/persistance.py::enum_role.
+CREATE TYPE t_role AS ENUM ('admin', 'clinicien');

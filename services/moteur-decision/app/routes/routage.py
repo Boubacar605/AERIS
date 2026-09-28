@@ -6,6 +6,7 @@ from datetime import date
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel
+from sqlalchemy.exc import IntegrityError
 
 from app import persistance
 from app.authentification import exiger_role
@@ -36,18 +37,79 @@ class EnTetePatientRequete(BaseModel):
     telephone: str
 
 
+class FichePatientTrouvee(BaseModel):
+    """Fiche existante retrouvee a partir du seul numero de telephone."""
+
+    trouve: bool
+    id_patient: int | None = None
+    code_patient: str | None = None
+    nom: str | None = None
+    prenom: str | None = None
+    nom_complet: str | None = None
+    email: str | None = None
+    date_naissance: date | None = None
+    telephone_normalise: str | None = None
+
+
+@routeur_routage.get("/patient", response_model=FichePatientTrouvee)
+async def rechercher_patient_par_telephone_route(
+    telephone: str,
+    _utilisateur=Depends(exiger_role("clinicien")),
+) -> FichePatientTrouvee:
+    """Retrouve la fiche existante correspondant a un numero de telephone.
+
+    Appele par le formulaire « Diagnostic » pendant la saisie : si le numero
+    est deja connu, l'interface reprend l'identite du patient pour eviter de
+    ressaisir a la main et surtout pour rattacher l'examen a la bonne fiche.
+
+    Cette lecture ne cree rien et ne modifie rien : la validation reste
+    explicite (bouton « Enregistrer le patient »), et le refus de
+    rattachement a une autre identite reste applique par POST /routage/patient.
+    """
+    numero = normaliser_numero(telephone)
+    if not numero:
+        # Saisie encore en cours (fewer than one digit) : pas une erreur.
+        return FichePatientTrouvee(trouve=False)
+
+    patient = await persistance.rechercher_patient_par_telephone(telephone)
+    if patient is None:
+        return FichePatientTrouvee(trouve=False)
+
+    _logger.info(
+        "Fiche existante retrouvee par telephone (%s) — pre-remplissage propose",
+        patient.code_patient,
+    )
+    return FichePatientTrouvee(
+        trouve=True,
+        id_patient=patient.id_patient,
+        code_patient=patient.code_patient,
+        # Les fiches d'avant la séparation nom/prenom n'ont que nom_complet :
+        # on renvoie alors l'affichage, et le formulaire ne l'ignore pas.
+        nom=patient.nom or None,
+        prenom=patient.prenom or None,
+        nom_complet=patient.nom_complet,
+        email=patient.email,
+        date_naissance=patient.date_naissance,
+        telephone_normalise=numero,
+    )
+
+
 @routeur_routage.post("/analyser", response_model=ReponseRoutage)
 async def router_et_analyser(
     fichier: UploadFile = File(...),
     force_destination: str | None = Form(default=None),
     contexte: str | None = Form(default=None),
     code_patient: str | None = Form(default=None),
+    second_avis: bool | None = Form(default=None),
     _utilisateur=Depends(exiger_role("clinicien")),
 ) -> ReponseRoutage:
     """Recoit une radiographie, decide ou la traiter, et retourne les resultats.
 
     Si force_destination est fourni ("edge" ou "cloud"), le routage automatique
-    est ignore et l'inference est forcee vers la destination choisie.
+    est ignore et l'inference est forcee vers la destination choisie : aucun
+    appel n'est emis vers l'autre source, afin que la mesure reste fidele a
+    la destination annoncee. Passer second_avis=true pour reactiver le
+    controle qualite croise malgre la destination forcee.
 
     L'eventuel contexte clinique ("tuberculose", "pneumonie" ou "general")
     surclasse le profilage automatique : il restreint ou elargit le choix
@@ -69,6 +131,7 @@ async def router_et_analyser(
         force_destination,
         contexte=contexte,
         nom_fichier=fichier.filename,
+        second_avis=second_avis,
     )
 
     # Patient désigné par code_patient (résolu une seule fois) : rattache
@@ -87,12 +150,25 @@ async def router_et_analyser(
         filtrage=resultat.filtrage.model_dump() if resultat.filtrage else None,
     )
 
+    # Poignee de l'examen (Vague 1) : la ligne examens_image est ecrite ici,
+    # en une transaction courte, pour que l'approbation du clinicien puisse
+    # s'adresser a un examen precis. Les verdicts et le diagnostic restent
+    # flushes par le worker : preparer_examen absorbe toute erreur et renvoie
+    # None, l'analyse est servie dans tous les cas.
+    id_examen = await persistance.preparer_examen(
+        id_patient=patient_cible.id_patient if patient_cible else None,
+        nom_fichier=fichier.filename or "inconnu",
+        hash_contenu=hashlib.sha256(contenu_image).hexdigest(),
+        taille_octets=len(contenu_image),
+    )
+
     # Persistance durable : jamais bloquante ; soit la file est consommée par
     # le worker, soit l'écriture est simplement ignorée (persistance inactive).
     # id_patient relie l'examen au sujet réel (sinon le patient technique).
     _ = persistance.soumettre_diagnostic(
         {
             "id_patient": patient_cible.id_patient if patient_cible else None,
+            "id_examen": id_examen,
             "nom_fichier": fichier.filename,
             "hash_contenu": hashlib.sha256(contenu_image).hexdigest(),
             "taille_octets": len(contenu_image),
@@ -109,7 +185,15 @@ async def router_et_analyser(
         }
     )
 
-    return resultat
+    return ReponseRoutage(
+        decision=resultat.decision,
+        resultats=resultat.resultats,
+        escalades=resultat.escalades,
+        temps_total_ms=resultat.temps_total_ms,
+        temps_escalade_ms=resultat.temps_escalade_ms,
+        filtrage=resultat.filtrage,
+        id_examen=id_examen,
+    )
 
 
 @routeur_routage.post("/patient")
@@ -123,6 +207,12 @@ async def enregistrer_en_tete_patient(
     deja enregistre reutilise le compte existant (``deja_enregistre: true``)
     au lieu de cree un doublon. Le code AER-AAAA-NNNN est generee par le
     systeme ; aucune saisie manuelle requise.
+
+    Securite : le dedoublonnage ne doit jamais rattacher un examen a la
+    fiche d'un autre patient. Si le telephone existe mais que l'identite
+    (nom/prenom) differe, on refuse l'enregistrement (409) au lieu de
+    renvoyer silencieusement un dossier etrang — meme traitement pour un
+    email deja associe a un autre patient.
     """
     if not persistance.active():
         raise HTTPException(status_code=503, detail="Base de donnees indisponible")
@@ -136,8 +226,29 @@ async def enregistrer_en_tete_patient(
             status_code=422, detail="Numero de telephone invalide (chiffres requis)"
         )
 
+    email = requete.email.strip().lower() if requete.email else None
+
     existant = await persistance.rechercher_patient_par_telephone(requete.telephone)
     if existant is not None:
+        if not _meme_identite(existant, nom, prenom):
+            _logger.warning(
+                "Conflit d'identite sur le telephone %s : fiche « %s » != saisie « %s %s » "
+                "— enregistrement refuse",
+                normaliser_numero(requete.telephone),
+                # getattr : les fiches anciennes n'ont pas les colonnes
+                # nom/prenom (seul nom_complet est renseigne).
+                getattr(existant, "nom_complet", None) or "identite inconnue",
+                prenom,
+                nom,
+            )
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    "Ce numero de telephone est deja rattache a un autre patient. "
+                    "Verifiez l'identite saisie, utilisez un autre numero, ou "
+                    "selectionnez le dossier existant pour retrouver ses resultats."
+                ),
+            )
         _logger.info(
             "Patient deja enregistre (telephone) — compte reutilise : %s",
             existant.code_patient,
@@ -149,13 +260,34 @@ async def enregistrer_en_tete_patient(
             "deja_enregistre": True,
         }
 
-    patient = await persistance.creer_patient(
-        nom=nom,
-        prenom=prenom,
-        email=requete.email.strip().lower() if requete.email else None,
-        telephone=requete.telephone,
-        date_naissance=requete.date_naissance,
-    )
+    if email:
+        par_email = await persistance.rechercher_patient_par_email(email)
+        if par_email is not None:
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    "Cet email est deja associe a un autre patient. "
+                    "Utilisez le dossier existant ou une autre adresse."
+                ),
+            )
+
+    try:
+        patient = await persistance.creer_patient(
+            nom=nom,
+            prenom=prenom,
+            email=email,
+            telephone=requete.telephone,
+            date_naissance=requete.date_naissance,
+        )
+    except IntegrityError as exc:
+        # Filet de securite : deux requetes concurrentes peuvent franchir
+        # la verification applicative avant que la contrainte unique ne
+        # tombe. On traduit alors l'integrite en 409 explicite.
+        _logger.warning("Conflit d'unicite a l'enregistrement du patient : %s", exc)
+        raise HTTPException(
+            status_code=409,
+            detail="Patient deja enregistre (telephone ou email deja utilise)",
+        ) from exc
     _logger.info(
         "Patient cree avec un code automatique : %s (%s %s)",
         patient.code_patient,
@@ -168,3 +300,28 @@ async def enregistrer_en_tete_patient(
         "nom_complet": patient.nom_complet,
         "deja_enregistre": False,
     }
+
+
+def _meme_identite(patient, nom: str, prenom: str) -> bool:
+    """Compare l'identite saisie a celle du dossier existant.
+
+    Comparaison insensible a la casse et aux espaces : « niang » et
+    « NIANG  » designent la meme personne. Une difference de nom ou de
+    prenom est un conflit et bloque l'enregistrement.
+
+    Les fiches anterieures a la separation nom/prenom (migration 0004) n'ont
+    que ``nom_complet`` : on compare alors la forme concatenee, sinon tout
+    re-enregistrement d'un patient historique serait refuse a tort.
+    """
+    def _normaliser(valeur: str | None) -> str:
+        return " ".join((valeur or "").split()).casefold()
+
+    nom_existant = _normaliser(getattr(patient, "nom", None))
+    prenom_existant = _normaliser(getattr(patient, "prenom", None))
+
+    if nom_existant or prenom_existant:
+        return nom_existant == _normaliser(nom) and prenom_existant == _normaliser(prenom)
+
+    return _normaliser(getattr(patient, "nom_complet", None)) == _normaliser(
+        " ".join(part for part in (prenom, nom) if part)
+    )

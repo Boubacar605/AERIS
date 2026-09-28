@@ -37,14 +37,15 @@ async def envoyer_notification_resultat(
         f"Pour consulter vos resultats, utilisez le lien ci-dessous :\n"
         f"{lien}\n\n"
         f"Code OTP : {code_otp}\n"
-        f"Ce code est valide pendant {config.otp_ttl_minutes} minutes.\n\n"
+        f"Ce code n'expire pas : vous pouvez consulter vos resultats\n"
+        f"autant de fois que vous le souhaitez.\n\n"
         f"---\n"
         f"AERIS — Radiologie Adaptative Edge-Cloud\n"
         f"Universite Alioune Diop de Bambey (UADB)\n"
     )
 
     # Fallback : si aucun SMTP n'est configure, on log le contenu
-    if not config.smtp_hote and not config.smtp_mot_de_passe:
+    if not config.smtp_hote or not config.smtp_mot_de_passe:
         _logger.info(
             "_EMAIL_SIMULEE → %s | Lien: %s | OTP: %s",
             email_destination,
@@ -66,7 +67,7 @@ async def envoyer_notification_resultat(
             port=config.smtp_port,
             username=config.smtp_utilisateur or None,
             password=config.smtp_mot_de_passe or None,
-            start_tls=True,
+            start_tls=config.smtp_start_tls,
         )
         _logger.info("Email envoye via SMTP a %s", email_destination)
         return True
@@ -87,35 +88,76 @@ async def envoyer_notification_otp(
        cible pour les patients sans email) ;
     3. email seul         : **Email** (anciens comptes sans telephone).
 
+    Un canal indisponible ne doit pas faire perdre l'OTP : le résultat est
+    un succes des que **au moins un** canal a recu le code. Chaque canal est
+    trace separement pour que l'interface puisse signaler precisely le
+    compteur, et non un echec global trompeur.
+
     Retourne ``{"canal": "email+whatsapp"|"whatsapp"|"email"|"aucun",
-    "ok": bool}``.
+    "ok": bool, "canaux": {"email": bool, "whatsapp": bool},
+    "canaux_oks": [...], "avertissements": [...]}``.
     """
     telephone = getattr(patient, "telephone", None)
     email = getattr(patient, "email", None)
     nom = getattr(patient, "nom_complet", None)
 
+    canaux: dict[str, bool] = {}
     if telephone:
-        ok_whatsapp = await envoyer_otp_whatsapp(
+        canaux["whatsapp"] = await envoyer_otp_whatsapp(
             telephone,
             code_otp,
             nom_patient=nom,
         )
         if email:
-            ok_email = await envoyer_notification_resultat(
+            canaux["email"] = await envoyer_notification_resultat(
                 email_destination=email,
                 code_otp=code_otp,
                 nom_patient=nom,
             )
-            return {"canal": "email+whatsapp", "ok": ok_whatsapp and ok_email}
-        return {"canal": "whatsapp", "ok": ok_whatsapp}
+            return _statut_otp("email+whatsapp", canaux)
+        return _statut_otp("whatsapp", canaux)
 
     if email:
-        ok = await envoyer_notification_resultat(
+        canaux["email"] = await envoyer_notification_resultat(
             email_destination=email,
             code_otp=code_otp,
             nom_patient=nom,
         )
-        return {"canal": "email", "ok": ok}
+        return _statut_otp("email", canaux)
 
     _logger.warning("Patient %s sans telephone ni email — OTP non envoye", patient.code_patient)
-    return {"canal": "aucun", "ok": False}
+    return _statut_otp("aucun", canaux)
+
+
+def _statut_otp(canal: str, canaux: dict[str, bool]) -> dict:
+    """Construit le verdict d'envoi a partir du succes par canal.
+
+    ``ok`` est vrai des qu'un canal a abouti : l'OTP reste accessible au
+    patient, et un compteur en panne (relais WhatsApp hors ligne) ne doit
+    pas etre presente comme un envoi completement rate.
+    """
+    # L'ordre de diffusion est stable pour l'affichage et les tests.
+    ordre = ("email", "whatsapp")
+    tries = {nom: bool(ok) for nom, ok in canaux.items()}
+    succes = [nom for nom in ordre if tries.get(nom)]
+    echecs = [nom for nom in ordre if nom in tries and not tries[nom]]
+
+    avertissements = []
+    if succes and echecs:
+        avertissements.append(
+            f"OTP delivre par {', '.join(succes)} mais l'envoi par "
+            f"{', '.join(echecs)} a echoue (canal indisponible)."
+        )
+    elif echecs and not succes:
+        avertissements.append(
+            f"Aucun canal n'a abouti ({', '.join(echecs)} indisponible(s)). "
+            "Communiquez l'OTP au patient par un autre moyen."
+        )
+
+    return {
+        "canal": canal,
+        "ok": bool(succes),
+        "canaux": tries,
+        "canaux_oks": succes,
+        "avertissements": avertissements,
+    }

@@ -8,7 +8,7 @@ import logging
 from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app import persistance
 from app.authentification import exiger_role, hacher_mot_de_passe
@@ -228,33 +228,48 @@ async def renvoyer_otp(
         destination=destination,
     )
     envoye = await envoyer_notification_otp(patient, code)
-    return {
-        "statut": "otp_envoye" if envoye["ok"] else "echec_envoi",
-        "canal": envoye["canal"],
-        "contact": contact,
-    }
+    return _reponse_envoi(envoye, contact)
 
 
-class ApprobationExamenRequete(BaseModel):
-    """Le clinicien valide un examen : la notification OTP part alors."""
+class ValidationExamenRequete(BaseModel):
+    """Decision du clinicien sur un examen precis.
 
-    code_patient: str
+    ``id_examen`` et non le code patient : l'approbation porte sur un compte
+    rendu, pas sur une personne. C'est ce qui permet de rattacher la decision
+    a l'OTP envoye et de le revoquer en cas de desaccord.
+    """
+
+    id_examen: int
+    note_clinique: str | None = None
+
+
+class DesapprobationExamenRequete(BaseModel):
+    id_examen: int
+    motif_desaccord: str = Field(min_length=1)
 
 
 @routeur_admin.post("/examens/approuver")
 async def approuver_examen(
-    requete: ApprobationExamenRequete,
-    _=Depends(exiger_role("clinicien")),
+    requete: ValidationExamenRequete,
+    utilisateur=Depends(exiger_role("clinicien")),
 ) -> dict:
-    """Valide l'examen a l'issue duquel le patient recoit son code OTP.
+    """Valide l'examen : la notification OTP part alors.
 
     C'est le declencheur du flux patient : le code est genere et envoye par
     email + WhatsApp si le patient a une adresse email, sinon par WhatsApp
     seul (envoyer_notification_otp choisi les canaux). Le code + le lien de
     la page « consultation resultats » sont inclus dans chaque message.
+
+    L'OTP est emis **pour cet examen** (et non plus sans lien, comme avant la
+    Vague 1) et la decision est journalisee : sans elle, aucun desaccord
+    ulterieur ne pourrait etre trace ni revoquer.
     """
-    patient = await persistance.obtenir_patient_par_code(requete.code_patient)
-    if not patient:
+    if not persistance.active():
+        raise HTTPException(status_code=503, detail="Base de donnees indisponible")
+
+    id_patient = await _patient_de_examen(requete.id_examen)
+    patient = await persistance.obtenir_patient_par_id(id_patient)
+    if patient is None:
         raise HTTPException(status_code=404, detail="Patient introuvable")
 
     contact = patient.telephone or patient.email
@@ -265,19 +280,109 @@ async def approuver_examen(
         )
 
     destination = normaliser_numero(patient.telephone) if patient.telephone else patient.email
-    code = await persistance.generer_et_stocker_otp(
+    code, id_otp = await persistance.emettre_otp_pour_examen(
         id_patient=patient.id_patient,
-        id_examen=None,
+        id_examen=requete.id_examen,
         destination=destination,
+    )
+    validation = await persistance.enregistrer_validation(
+        id_examen=requete.id_examen,
+        statut="approuve",
+        id_utilisateur=utilisateur.id_utilisateur,
+        note_clinique=requete.note_clinique,
+        id_otp=id_otp,
     )
     envoye = await envoyer_notification_otp(patient, code)
     _logger.info(
-        "Examen approuve pour %s — OTP envoye sur %s",
+        "Examen %s approuve pour %s — OTP envoye sur %s (canaux ok : %s)",
+        requete.id_examen,
         patient.code_patient,
-        envoye["canal"],
+        envoye.get("canal", "aucun"),
+        ", ".join(envoye.get("canaux_oks") or []) or "aucun",
+    )
+    for avertissement in envoye.get("avertissements") or []:
+        _logger.warning("OTP %s : %s", patient.code_patient, avertissement)
+    return {**_reponse_envoi(envoye, contact), "validation": validation}
+
+
+@routeur_admin.post("/examens/desapprouver")
+async def desapprouver_examen(
+    requete: DesapprobationExamenRequete,
+    utilisateur=Depends(exiger_role("clinicien")),
+) -> dict:
+    """Refuse le compte rendu et retire au patient l'acces au code envoye.
+
+    Le desaccord est obligatoire : c'est lui qui rend la decision relisible plus
+    tard, et le journal est **en ajout** — une reapprobation ulterieure n'ecrase
+    pas ce motif.
+
+    Sans la revocation des OTP deja emis, ce bouton n'aurait aucun effet : le
+    code est permanent et reutilisable, le patient continuerait de lire le
+    resultat que le clinicien vient de refuser.
+    """
+    if not persistance.active():
+        raise HTTPException(status_code=503, detail="Base de donnees indisponible")
+
+    id_patient = await _patient_de_examen(requete.id_examen)
+    validation = await persistance.enregistrer_validation(
+        id_examen=requete.id_examen,
+        statut="desapprouve",
+        id_utilisateur=utilisateur.id_utilisateur,
+        motif_desaccord=requete.motif_desaccord,
+    )
+    revoques = await persistance.revoquer_otp(requete.id_examen)
+    _logger.info(
+        "Examen %s desapprouve (patient %s) — %s OTP revoque(s)",
+        requete.id_examen,
+        id_patient,
+        revoques,
     )
     return {
-        "statut": "otp_envoye" if envoye["ok"] else "echec_envoi",
-        "canal": envoye["canal"],
+        "statut": "desapprouve",
+        "otp_revoques": revoques,
+        "validation": validation,
+    }
+
+
+async def _patient_de_examen(id_examen: int) -> int:
+    """Patient rattache a un examen, 404 si l'examen n'existe pas."""
+    id_patient = await persistance.patient_de_examen(id_examen)
+    if id_patient is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Examen introuvable — l'analyse n'a peut-etre pas ete conservee",
+        )
+    return id_patient
+
+
+def _reponse_envoi(envoye: dict, contact: str) -> dict:
+    """Traduit le verdict par canal en reponse HTTP comprehensible.
+
+    Le statut distingue l'echec total de la livraison partielle : si un
+    seul canal a abouti, l'OTP est bien parti et la reponse doit le dire,
+    sans masquer le compteur en panne derriere un « echec_envoi ».
+
+    Les details par canal sont lus de facon tolerante (``get``) : l'examen
+    est deja approuve en base a ce stade, une forme de retour incomplete ne
+    doit donc pas transformer l'approbation en erreur 500 — l'appelant
+    (``envoyer_notification_otp``) reste la seule source de verite.
+    """
+    canaux = dict(envoye.get("canaux") or {})
+    canaux_oks = list(envoye.get("canaux_oks") or [])
+    avertissements = list(envoye.get("avertissements") or [])
+    ok = bool(envoye.get("ok"))
+
+    if not ok:
+        statut = "echec_envoi"
+    elif canaux and len(canaux_oks) < len(canaux):
+        statut = "otp_partiellement_envoye"
+    else:
+        statut = "otp_envoye"
+    return {
+        "statut": statut,
+        "canal": envoye.get("canal", "aucun"),
         "contact": contact,
+        "canaux": canaux,
+        "canaux_oks": canaux_oks,
+        "avertissements": avertissements,
     }

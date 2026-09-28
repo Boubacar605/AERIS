@@ -1,14 +1,23 @@
 /**
- * Store d'authentification — session JWT persistée en localStorage.
+ * Store d'authentification — session JWT en `sessionStorage`.
  *
  * Même pattern que `resultat-store` : un état module + `useSyncExternalStore`.
- * La session survit au rechargement (localStorage) mais reste limitée au
- * navigateur courant (pas de cookies, pas d'entre-navigateurs).
  *
- * Compatibilité SSR : la lecture synchrone de localStorage est différée au
- * premier appel côté client. `useSession` ne renvoie une session qu'après
- * l'hydratation effectuée par <RootComponent> (voir __root.tsx), ce qui
- * évite tout désaccord serveur / client au premier rendu.
+ * Choix de sécurité : la session vit dans `sessionStorage`, pas
+ * `localStorage`. Le navigateur vide `sessionStorage` à la fermeture de
+ * l'onglet ou du navigateur : toute nouvelle visite exige donc une
+ * authentification, ce qu'un `localStorage` ne garantit pas (il conserve le
+ * jeton indéfiniment). Un rechargement (F5) de la page conserve en revanche la
+ * session, qui reste liée à l'onglet courant et disparaît avec lui.
+ *
+ * Une ancienne session `localStorage` (version antérieure du code) est
+ * systématiquement purgée à la première lecture : un jeton d'accès valide ne
+ * doit pas survivre à une déconnexion dans le stockage persistant.
+ *
+ * Compatibilité SSR : la lecture synchrone du stockage est différée au premier
+ * appel côté client. `useSession` ne renvoie une session qu'après l'hydratation
+ * effectuée par <RootComponent> (voir __root.tsx), ce qui évite tout désaccord
+ * serveur / client au premier rendu.
  */
 
 import { useSyncExternalStore } from "react";
@@ -32,20 +41,34 @@ export type Session = {
 const CLE_SESSION = "aeris.session";
 
 let session: Session | null = null;
-let hydrate = false; // passe à vrai dès que la session a été lue depuis localStorage
-let pret = false; // mémorise si on a déjà (tenté de) lire localStorage
+let hydrate = false; // passe à vrai dès que la session a été lue depuis le stockage
+let pret = false; // mémorise si on a déjà (tenté de) lire le stockage
 const ecouteurs = new Set<() => void>();
 
 function notifier() {
   for (const ecoute of ecouteurs) ecoute();
 }
 
-/** Lit la session depuis localStorage (une seule fois), côté client uniquement. */
+/**
+ * Purge une éventuelle session laissée dans `localStorage` par une version
+ * antérieure : ce stockage survit à la déconnexion, contrairement à
+ * `sessionStorage`, et conserverait un jeton d'accès valide.
+ */
+function purgerSessionPersistante(): void {
+  try {
+    window.localStorage.removeItem(CLE_SESSION);
+  } catch {
+    /* stockage indisponible : rien à purger */
+  }
+}
+
+/** Lit la session depuis sessionStorage (une seule fois), côté client uniquement. */
 function lierSessionClient(): void {
   if (pret || typeof window === "undefined") return;
   pret = true;
+  purgerSessionPersistante();
   try {
-    const brut = window.localStorage.getItem(CLE_SESSION);
+    const brut = window.sessionStorage.getItem(CLE_SESSION);
     if (brut) session = JSON.parse(brut) as Session;
   } catch {
     session = null; // stockage corrompu : on repart d'un état vierge
@@ -57,8 +80,8 @@ export function definirSession(valeur: Session | null): void {
   session = valeur;
   if (typeof window !== "undefined") {
     try {
-      if (valeur) window.localStorage.setItem(CLE_SESSION, JSON.stringify(valeur));
-      else window.localStorage.removeItem(CLE_SESSION);
+      if (valeur) window.sessionStorage.setItem(CLE_SESSION, JSON.stringify(valeur));
+      else window.sessionStorage.removeItem(CLE_SESSION);
     } catch {
       /* stockage indisponible : la session reste en mémoire */
     }
@@ -66,14 +89,14 @@ export function definirSession(valeur: Session | null): void {
   notifier();
 }
 
-/** Déconnexion : efface la session (localStorage compris). */
+/** Déconnexion : efface la session (stockage compris). */
 export function deconnecter(): void {
   definirSession(null);
 }
 
 /**
  * Lecture non réactive de la session (handlers, `beforeLoad`, client API).
- * Lit localStorage si nécessaire : c'est la session « vraie » du navigateur.
+ * Lit le stockage si nécessaire : c'est la session « vraie » de l'onglet.
  */
 export function obtenirSession(): Session | null {
   lierSessionClient();

@@ -1,7 +1,10 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
+import { formatDateFr } from "@/lib/dernier-resultat";
 import {
   ArrowLeft,
   BadgeCheck,
+  CalendarCheck,
+  CalendarPlus,
   Download,
   FileText,
   KeyRound,
@@ -9,6 +12,8 @@ import {
   Mail,
   MessageCircle,
   ScanLine,
+  Share2,
+  Stethoscope,
   Send,
   ShieldAlert,
   ThumbsDown,
@@ -22,14 +27,22 @@ import { Panel, Tag } from "@/components/aeris/primitives";
 import {
   ApiError,
   approuverExamen,
+  creerSuivi,
+  desapprouverExamen,
+  lireRecommandations,
+  partagerCompteRendu,
+  type PartageCompteRendu,
+  type RecommandationClinique,
   type ReponseAccesResultat,
   type ReponseApprobation,
+  type ReponseDesapprobation,
+  type SuiviCree,
 } from "@/lib/api";
 import { genererCompteRendu, type ToneFiabilite } from "@/lib/compte-rendu";
 import { genererPdfClinique } from "@/lib/export-pdf";
 import { useResultat } from "@/lib/resultat-store";
-import { exigerRole, pageAccueilPourRole } from "@/lib/authentification";
-import { sessionHydratee, useSession } from "@/lib/authentification-store";
+import { pageAccueilPourRole } from "@/lib/authentification";
+import { sessionHydratee, useSession, type RoleUtilisateur } from "@/lib/authentification-store";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/resultat")({
@@ -41,10 +54,12 @@ export const Route = createFileRoute("/resultat")({
     const otp = typeof brut === "string" && brut.length > 0 ? brut : undefined;
     return otp ? { otp } : {};
   },
-  // Le mode patient (?otp=…) est public ; la vue clinicien exige ce rôle.
-  beforeLoad: ({ search }) => {
-    if (!search.otp) exigerClinique();
-  },
+  // Le portail patient est public : c'est un code OTP, pas une session, qui
+  // identifie le patient. La garde de rôle ne peut donc pas lives dans
+  // beforeLoad — elle rejetait vers /login le patient venu par le lien de
+  // partage, qui ne contient pas d'OTP. Le choix se fait dans le composant,
+  // une fois la session hydratée.
+  beforeLoad: () => {},
   component: ResultatPage,
   head: () => ({
     meta: [
@@ -60,21 +75,68 @@ export const Route = createFileRoute("/resultat")({
   }),
 });
 
-/** Garde locale : la vue clinicien de /resultat n'est pas dans la table
- * ROLES_POUR_PREFIXE (le chemin sert aussi le mode patient public). */
-function exigerClinique(): void {
-  exigerRole("clinicien");
+/** Attente neutre, le temps que sessionStorage soit lu. */
+function AttenteHydratation() {
+  return (
+    <div className="grid min-h-screen place-items-center bg-navy">
+      <Loader2 className="size-6 animate-spin text-navy-muted" />
+    </div>
+  );
 }
 
 /**
  * Point d'entrée dual :
- * - avec ?otp= : flux patient (public, aucun AppShell) ;
- * - sinon : compte rendu clinicien (AppShell, rôle exigé).
+ * - avec `?otp=` : flux patient, code déjà pré-rempli (lien d'e-mail ou
+ *   WhatsApp au moment de l'approbation) ;
+ * - sans session : le visiteur est un patient, il saisit son code à la main
+ *   (lien de partage, ou lien perdu d'origine) ;
+ * - avec une session : compte rendu clinicien.
  */
 function ResultatPage() {
   const { otp } = Route.useSearch();
-  if (otp) return <PatientOtpHub />;
+  const session = useSession();
+
+  const vue = choisirVueResultat({
+    otp,
+    hydrate: sessionHydratee(),
+    role: session?.personne.role ?? null,
+  });
+
+  if (vue === "attente") return <AttenteHydratation />;
+  if (vue === "patient") return <PatientOtpHub />;
   return <ResultatClinique />;
+}
+
+/**
+ * Décide quelle vue afficher sur `/resultat`. Fonction pure, volontairement
+ * séparée du composant : c'est ici que se décide l'entrée du patient, et une
+ * erreur ici est invisible (elle ne plante pas, elle renvoie simplement le
+ * patient vers une page de connexion sans issue).
+ */
+export function choisirVueResultat({
+  otp,
+  hydrate,
+  role,
+}: {
+  otp: string | undefined;
+  hydrate: boolean;
+  role: RoleUtilisateur | null;
+}): "attente" | "patient" | "clinique" {
+  // Un lien d'OTP est déjà une autorisation : le code est là, on l'affiche.
+  if (otp) return "patient";
+
+  // Avant hydratation, ni compte rendu ni formulaire : afficher le portail à un
+  // clinicien en cours d'authentification ferait clignoter la page.
+  if (!hydrate) return "attente";
+
+  // Un patient n'a pas de compte, seulement un code. Le renvoyer vers /login
+  // le ferait échouer sans issue : c'est un patient, pas un visiteur égaré.
+  if (role === null) return "patient";
+
+  // Un admin est connecté mais n'est pas clinicien : ResultatClinique le
+  // renverra vers sa page d'accueil. On ne montre surtout pas le formulaire
+  // patient à un administrateur, cela lui suggérerait qu'il a un dossier.
+  return "clinique";
 }
 
 /* ------------------------------ Mode patient ------------------------------ */
@@ -207,7 +269,7 @@ function PatientOtpHub() {
       const detail =
         ex instanceof ApiError
           ? ex.status === 401
-            ? "Code OTP invalide, expiré ou déjà utilisé. Vérifiez le code reçu et le numéro (ou l'email) que vous avez indiqués."
+            ? "Code OTP invalide, ou trop de tentatives erronées. Vérifiez le code reçu et le numéro (ou l'email) que vous avez indiqués."
             : `Le serveur a rencontré une erreur (${ex.status}). Réessayez dans un instant.`
           : ex instanceof DOMException && ex.name === "TimeoutError"
             ? "Le serveur met trop de temps à répondre. Réessayez dans un instant."
@@ -218,7 +280,7 @@ function PatientOtpHub() {
     }
   }
 
-  if (donnees) return <PatientResult donnees={donnees} />;
+  if (donnees) return <PatientResult donnees={donnees} otp={otp ?? ""} />;
 
   return (
     <div className="grid min-h-screen place-items-center bg-navy px-4 py-10">
@@ -226,7 +288,7 @@ function PatientOtpHub() {
         <div className="mb-6 text-center">
           <img src="/logo-aeris.png" alt="AERIS" className="mx-auto w-40 object-contain" />
           <p className="mt-3 font-mono text-[11px] tracking-[0.18em] text-navy-muted uppercase">
-            Espace patient · accès sécurisé
+            Espace patient · accès par code
           </p>
         </div>
 
@@ -328,9 +390,20 @@ function PatientOtpHub() {
           </button>
 
           <p className="mt-4 text-center font-mono text-[10px] text-muted-foreground">
-            Code à usage unique · expire 15 minutes après envoi
+            Code permanent · vos résultats restent accessibles à tout moment
           </p>
         </form>
+
+        <p className="mt-5 text-center text-[11px] text-navy-muted">
+          Vous êtes clinicien ?{" "}
+          <Link
+            to="/login"
+            search={{ retro: "/resultat" }}
+            className="font-semibold text-cloud underline underline-offset-2"
+          >
+            Connectez-vous
+          </Link>
+        </p>
       </div>
     </div>
   );
@@ -380,29 +453,161 @@ function ResultatContent() {
   const [decision, setDecision] = useState<"approuve" | "desapprouve" | null>(null);
   const [envoiOtp, setEnvoiOtp] = useState(false);
   const [approbation, setApprobation] = useState<ReponseApprobation | null>(null);
+  const [desapprobation, setDesapprobation] = useState<ReponseDesapprobation | null>(null);
   const [erreurApprobation, setErreurApprobation] = useState<string | null>(null);
+  const [noteClinique, setNoteClinique] = useState("");
+  const [motifDesaccord, setMotifDesaccord] = useState("");
+  const [motifOuvert, setMotifOuvert] = useState(false);
   const [pdfEnCours, setPdfEnCours] = useState(false);
+
+  // Recommandations et partage WhatsApp (Vague 2). Les recommandations ne sont
+  // ni stockees ni inventees : elles viennent du serveur, qui les derive des
+  // verdicts et refuse d'en produire pour un examen non approuve.
+  const [recommandations, setRecommandations] = useState<RecommandationClinique[] | null>(null);
+  const [recommandationsErreur, setRecommandationsErreur] = useState<string | null>(null);
+  const [partage, setPartage] = useState<PartageCompteRendu | null>(null);
+  const [partageEnCours, setPartageEnCours] = useState(false);
+  const [partageErreur, setPartageErreur] = useState<string | null>(null);
+
+  const [dateSuivi, setDateSuivi] = useState("");
+  const [motifSuivi, setMotifSuivi] = useState("");
+  const [suiviEnCours, setSuiviEnCours] = useState(false);
+  const [suiviCree, setSuiviCree] = useState<SuiviCree | null>(null);
+  const [erreurSuivi, setErreurSuivi] = useState<string | null>(null);
 
   const retourAuDiagnostic = () => navigate({ to: "/diagnostic" });
 
-  /** « Approuver » : envoie le code OTP au patient (email + WhatsApp, ou WhatsApp
-   * seul selon ses coordonnées) avec le lien de consultation, puis verrouille
-   * la décision. */
+  // Un examen sans identifiant base est antérieur à la Vague 1 : on ne peut pas
+  // décider « à sa place » sur le dossier entier, ce qui libérerait aussi les
+  // examens que le clinicien n'a pas regardés.
+  const idExamen = dossier?.id_examen ?? null;
+  const decisionPossible = idExamen !== null;
+  // Les recommandations se chargent a l'ouverture, pas seulement apres une
+  // approbation : un examen deja valide et relu depuis l'historique doit aussi
+  // afficher ses orientations. Le 409 du serveur (aucun verdict) n'est pas une
+  // panne, il est laisse muet dans ce cas de figure.
+  useEffect(() => {
+    if (idExamen === null) return;
+    void chargerRecommandations(idExamen);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [idExamen]);
+
+  /** « Approuver » : journalise la décision, puis envoie le code OTP au patient
+   * (email + WhatsApp, ou WhatsApp seul selon ses coordonnées). */
+  /** Charge les recommandations serveur pour un examen. */
+  const chargerRecommandations = async (examenId: number) => {
+    setRecommandationsErreur(null);
+    try {
+      const reponse = await lireRecommandations(examenId);
+      setRecommandations(reponse.recommandations.filter((reco) => reco.cible === "clinicien"));
+    } catch (erreur) {
+      setRecommandations(null);
+      setRecommandationsErreur(
+        erreur instanceof ApiError
+          ? erreur.message
+          : "Les recommandations ne sont pas disponibles pour le moment.",
+      );
+    }
+  };
+
+  /**
+   * Partage WhatsApp du compte rendu. Réservé au clinicien : l'API refuse un
+   * examen non approuvé, et l'erreur est affichée telle quelle.
+   */
+  const partager = async () => {
+    if (!idExamen) return;
+    setPartageEnCours(true);
+    setPartageErreur(null);
+    try {
+      setPartage(await partagerCompteRendu(idExamen));
+    } catch (erreur) {
+      setPartage(null);
+      setPartageErreur(
+        erreur instanceof ApiError ? erreur.message : "Le partage WhatsApp n'a pas abouti.",
+      );
+    } finally {
+      setPartageEnCours(false);
+    }
+  };
+
   const approuver = async () => {
-    if (!dossier) return;
+    if (!dossier || !idExamen) return;
     setDecision("approuve");
     setEnvoiOtp(true);
     setErreurApprobation(null);
     try {
-      const reponse = await approuverExamen(dossier.patient.code_patient);
+      const reponse = await approuverExamen(idExamen, noteClinique.trim() || undefined);
       setApprobation(reponse);
-    } catch {
+      // L'approbation vient de débloquer les recommandations patient : on les
+      // relit, plutot que d'afficher une liste vide jusqu'au rechargement.
+      void chargerRecommandations(idExamen);
+    } catch (erreur) {
       setErreurApprobation(
-        "Échec de l'envoi OTP — le patient n'a pas été notifié. Vérifiez la connectivité du moteur, puis réessayez.",
+        erreur instanceof ApiError
+          ? erreur.message
+          : "Échec de l'envoi OTP — le patient n'a pas été notifié. Vérifiez la connectivité du moteur, puis réessayez.",
       );
       setApprobation(null);
     } finally {
       setEnvoiOtp(false);
+    }
+  };
+
+  /**
+   * « Désapprouver » : exige un motif, journalise le désaccord et révoque les
+   * codes déjà envoyés au patient. Sans cette révocation, le refus serait
+   * cosmétique : le code est permanent, le patient continuerait de lire le
+   * compte rendu rejeté.
+   */
+  const desapprouver = async () => {
+    if (!dossier || !idExamen) return;
+    const motif = motifDesaccord.trim();
+    if (!motif) {
+      setErreurApprobation("Un motif est obligatoire : il explique le désaccord à un tiers.");
+      return;
+    }
+    setEnvoiOtp(true);
+    setErreurApprobation(null);
+    try {
+      const reponse = await desapprouverExamen(idExamen, motif);
+      setDesapprobation(reponse);
+      setDecision("desapprouve");
+      setMotifOuvert(false);
+    } catch (erreur) {
+      setErreurApprobation(
+        erreur instanceof ApiError
+          ? erreur.message
+          : "Le désaccord n'a pas pu être enregistré. Réessayez.",
+      );
+    } finally {
+      setEnvoiOtp(false);
+    }
+  };
+
+  /** Programme un contrôle à venir depuis le compte rendu. */
+  const programmerSuivi = async () => {
+    const idPatient = dossier?.patient.id_patient ?? null;
+    if (idPatient === null || !dateSuivi) {
+      setErreurSuivi("Choisissez une date de contrôle.");
+      return;
+    }
+    setSuiviEnCours(true);
+    setErreurSuivi(null);
+    try {
+      const cree = await creerSuivi({
+        id_patient: idPatient,
+        date_suivi: dateSuivi,
+        motif: motifSuivi.trim() || null,
+        id_examen_origine: idExamen,
+      });
+      setSuiviCree(cree);
+      setMotifSuivi("");
+    } catch (erreur) {
+      setErreurSuivi(
+        erreur instanceof ApiError ? erreur.message : "Le contrôle n'a pas pu être programmé.",
+      );
+    } finally {
+      setSuiviEnCours(false);
     }
   };
 
@@ -529,10 +734,35 @@ function ResultatContent() {
               title="Validité de la décision IA"
               subtitle="Le clinicien garde la main sur le verdict final"
             >
+              {!decisionPossible && (
+                <p className="mb-3 flex items-start gap-2 rounded-md border border-warn/40 bg-warn-soft/30 p-3 text-xs text-navy/80">
+                  <ShieldAlert className="mt-0.5 size-3.5 shrink-0 text-warn" />
+                  <span>
+                    Cet examen est antérieur à la traçabilité des décisions : il n'a pas
+                    d'identifiant en base, donc aucune validation ni révocation ne peut lui être
+                    rattachée. Relancez l'analyse depuis la page Diagnostic pour pouvoir trancher.
+                  </span>
+                </p>
+              )}
+
+              <label className="mb-3 block">
+                <span className="mb-1 block font-mono text-[10px] font-bold tracking-[0.12em] text-muted-foreground uppercase">
+                  Note clinique (facultative)
+                </span>
+                <textarea
+                  value={noteClinique}
+                  onChange={(e) => setNoteClinique(e.target.value)}
+                  maxLength={500}
+                  rows={2}
+                  placeholder="Conduite à tenir, examens complémentaires à prescrire…"
+                  className="w-full rounded-md border border-border bg-background px-3 py-2 text-xs text-foreground outline-none focus:border-primary"
+                />
+              </label>
+
               <div className="flex flex-wrap gap-2">
                 <button
                   type="button"
-                  disabled={decision !== null || envoiOtp}
+                  disabled={!decisionPossible || decision !== null || envoiOtp}
                   onClick={() => void approuver()}
                   className={cn(
                     "flex flex-1 items-center justify-center gap-2 rounded-md border px-3 py-2 font-mono text-[11px] font-bold tracking-[0.12em] uppercase transition-colors",
@@ -546,12 +776,15 @@ function ResultatContent() {
                   ) : (
                     <BadgeCheck className="size-4" />
                   )}
-                  {envoiOtp ? "Envoi OTP…" : "Approuver"}
+                  {envoiOtp ? "Traitement…" : "Approuver"}
                 </button>
                 <button
                   type="button"
-                  disabled={decision !== null}
-                  onClick={() => setDecision("desapprouve")}
+                  disabled={!decisionPossible || decision !== null || envoiOtp}
+                  onClick={() => {
+                    setMotifOuvert(true);
+                    setErreurApprobation(null);
+                  }}
                   className={cn(
                     "flex flex-1 items-center justify-center gap-2 rounded-md border px-3 py-2 font-mono text-[11px] font-bold tracking-[0.12em] uppercase transition-colors",
                     decision === "desapprouve"
@@ -564,6 +797,43 @@ function ResultatContent() {
                 </button>
               </div>
 
+              {motifOuvert && decision === null && (
+                <div className="mt-3 rounded-md border border-alert/40 bg-alert-soft/20 p-3">
+                  <label className="block">
+                    <span className="mb-1 block font-mono text-[10px] font-bold tracking-[0.12em] text-alert uppercase">
+                      Motif du désaccord (obligatoire)
+                    </span>
+                    <textarea
+                      value={motifDesaccord}
+                      onChange={(e) => setMotifDesaccord(e.target.value)}
+                      maxLength={500}
+                      rows={2}
+                      autoFocus
+                      placeholder="Verdict incohérent avec la lecture radiologique, cliché à refaire…"
+                      className="w-full rounded-md border border-border bg-background px-3 py-2 text-xs text-foreground outline-none focus:border-primary"
+                    />
+                  </label>
+                  <p className="mt-2 text-[11px] text-muted-foreground">
+                    Le motif est conservé au journal, même en cas de réapprobation ultérieure. Il
+                    explique le refus à un tiers : écrivez-le comme au collègue qui reprendra le
+                    dossier.
+                  </p>
+                  <button
+                    type="button"
+                    disabled={envoiOtp}
+                    onClick={() => void desapprouver()}
+                    className="mt-2 flex items-center gap-2 rounded-md bg-alert px-3 py-2 font-mono text-[11px] font-bold tracking-[0.12em] text-alert-foreground uppercase transition-opacity hover:opacity-90 disabled:opacity-50"
+                  >
+                    {envoiOtp ? (
+                      <Loader2 className="size-4 animate-spin" />
+                    ) : (
+                      <ThumbsDown className="size-4" />
+                    )}
+                    Confirmer le désaccord
+                  </button>
+                </div>
+              )}
+
               {decision === "approuve" && (
                 <div className="mt-3 space-y-2">
                   <p className="flex items-start gap-2 rounded-md border border-ok/40 bg-ok-soft/30 p-3 text-xs text-navy/80">
@@ -575,29 +845,69 @@ function ResultatContent() {
                     </span>
                   </p>
 
-                  {approbation && approbation.statut === "otp_envoye" && (
-                    <p className="flex items-start gap-2 rounded-md border border-ok/40 bg-ok-soft/40 p-3 text-xs text-navy/80">
-                      <Send className="mt-0.5 size-3.5 shrink-0 text-ok" />
-                      <span>
-                        <span className="font-semibold text-ok">OTP envoyé au patient</span> par{" "}
-                        {approbation.canal === "email+whatsapp"
-                          ? "email et WhatsApp"
-                          : approbation.canal === "whatsapp"
-                            ? "WhatsApp seul"
-                            : approbation.canal === "email"
-                              ? "email seul"
-                              : "aucun canal"}
-                        .
-                        {approbation.contact && (
-                          <>
-                            {" "}
-                            Contact : <span className="font-mono">{approbation.contact}</span>.
-                          </>
-                        )}{" "}
-                        Le patient peut consulter ses résultats via l'OTP.
-                      </span>
-                    </p>
-                  )}
+                  {approbation &&
+                    (approbation.statut === "otp_envoye" ||
+                      approbation.statut === "otp_partiellement_envoye") && (
+                      <p
+                        className={`flex items-start gap-2 rounded-md border p-3 text-xs ${
+                          approbation.statut === "otp_envoye"
+                            ? "border-ok/40 bg-ok-soft/40 text-navy/80"
+                            : "border-warn/40 bg-warn-soft/40 text-navy/80"
+                        }`}
+                      >
+                        <Send
+                          className={`mt-0.5 size-3.5 shrink-0 ${
+                            approbation.statut === "otp_envoye" ? "text-ok" : "text-warn"
+                          }`}
+                        />
+                        <span>
+                          <span
+                            className={`font-semibold ${
+                              approbation.statut === "otp_envoye" ? "text-ok" : "text-warn"
+                            }`}
+                          >
+                            {approbation.statut === "otp_envoye"
+                              ? "OTP envoyé au patient"
+                              : "OTP partiellement envoyé au patient"}
+                          </span>{" "}
+                          par{" "}
+                          {approbation.canal === "email+whatsapp"
+                            ? "email et WhatsApp"
+                            : approbation.canal === "whatsapp"
+                              ? "WhatsApp seul"
+                              : approbation.canal === "email"
+                                ? "email seul"
+                                : "aucun canal"}
+                          {approbation.statut === "otp_partiellement_envoye" &&
+                            approbation.canaux_oks &&
+                            approbation.canaux_oks.length > 0 && (
+                              <>
+                                {" "}
+                                (canaux ayant abouti :{" "}
+                                <span className="font-semibold">
+                                  {approbation.canaux_oks
+                                    .map((c) => (c === "email" ? "email" : "WhatsApp"))
+                                    .join(", ")}
+                                </span>
+                                )
+                              </>
+                            )}
+                          .
+                          {approbation.contact && (
+                            <>
+                              {" "}
+                              Contact : <span className="font-mono">{approbation.contact}</span>.
+                            </>
+                          )}{" "}
+                          {approbation.avertissements?.map((avertissement) => (
+                            <span key={avertissement} className="block">
+                              {avertissement}
+                            </span>
+                          ))}
+                          Le patient peut consulter ses résultats via l'OTP.
+                        </span>
+                      </p>
+                    )}
                   {approbation && approbation.statut === "echec_envoi" && (
                     <p className="flex items-start gap-2 rounded-md border border-alert/40 bg-alert-soft/40 p-3 text-xs text-alert">
                       <ShieldAlert className="mt-0.5 size-3.5 shrink-0 text-alert" />
@@ -625,12 +935,142 @@ function ResultatContent() {
                 </div>
               )}
               {decision === "desapprouve" && (
-                <p className="mt-3 flex items-start gap-2 rounded-md border border-alert/40 bg-alert-soft/30 p-3 text-xs text-navy/80">
-                  <ThumbsDown className="mt-0.5 size-3.5 shrink-0 text-alert" />
-                  <span>
-                    <span className="font-semibold text-alert">Décision IA désapprouvée.</span> Une
-                    relecture par un radiologue est recommandée avant toute conclusion clinique.
-                  </span>
+                <div className="mt-3 space-y-2">
+                  <p className="flex items-start gap-2 rounded-md border border-alert/40 bg-alert-soft/30 p-3 text-xs text-navy/80">
+                    <ThumbsDown className="mt-0.5 size-3.5 shrink-0 text-alert" />
+                    <span>
+                      <span className="font-semibold text-alert">Décision IA désapprouvée.</span>{" "}
+                      Une relecture par un radiologue est recommandée avant toute conclusion
+                      clinique.
+                    </span>
+                  </p>
+                  {desapprobation && (
+                    <p className="flex items-start gap-2 rounded-md border border-alert/40 bg-alert-soft/20 p-3 text-xs text-navy/80">
+                      <ShieldAlert className="mt-0.5 size-3.5 shrink-0 text-alert" />
+                      <span>
+                        <span className="font-semibold text-alert">Désaccord journalisé.</span>{" "}
+                        {desapprobation.otp_revoques > 0 ? (
+                          <>
+                            {desapprobation.otp_revoques} code
+                            {desapprobation.otp_revoques > 1 ? "s" : ""} patient
+                            {desapprobation.otp_revoques > 1 ? " ont" : " a"} été
+                            {desapprobation.otp_revoques > 1 ? " révoqués" : " révoqué"} : le compte
+                            rendu n'est plus accessible depuis ce code.
+                          </>
+                        ) : (
+                          <>
+                            Aucun code n'avait encore été envoyé pour cet examen : il n'y avait donc
+                            rien à révoquer.
+                          </>
+                        )}
+                      </span>
+                    </p>
+                  )}
+                </div>
+              )}
+              {/* ── Recommandations et partage (Vague 2) ── */}
+              {decisionPossible && (
+                <div className="mt-3 space-y-2">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="label-xs">Orientations de prise en charge</p>
+                    <div className="flex gap-1.5">
+                      {decision === "approuve" && (
+                        <button
+                          type="button"
+                          disabled={partageEnCours}
+                          onClick={() => void partager()}
+                          title="Envoyer le résumé du compte rendu validé par WhatsApp"
+                          className="flex items-center gap-1.5 rounded-md border border-ok/30 bg-ok-soft/40 px-2.5 py-1 font-mono text-[10px] font-bold tracking-[0.1em] text-ok uppercase transition-colors hover:bg-ok-soft/70 disabled:opacity-50"
+                        >
+                          {partageEnCours ? (
+                            <Loader2 className="size-3.5 animate-spin" />
+                          ) : (
+                            <Share2 className="size-3.5" />
+                          )}
+                          Partager par WhatsApp
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => void chargerRecommandations(idExamen)}
+                        className="flex items-center gap-1.5 rounded-md border border-border bg-card px-2.5 py-1 font-mono text-[10px] font-bold tracking-[0.1em] text-muted-foreground uppercase transition-colors hover:text-foreground"
+                      >
+                        <Stethoscope className="size-3.5" />
+                        Actualiser
+                      </button>
+                    </div>
+                  </div>
+
+                  {recommandationsErreur && (
+                    <p className="flex items-start gap-2 rounded-md border border-warn/40 bg-warn-soft/30 p-3 text-xs text-navy/80">
+                      <ShieldAlert className="mt-0.5 size-3.5 shrink-0 text-warn" />
+                      <span>{recommandationsErreur}</span>
+                    </p>
+                  )}
+
+                  {partageErreur && (
+                    <p className="flex items-start gap-2 rounded-md border border-alert/40 bg-alert-soft/40 p-3 text-xs text-alert">
+                      <ShieldAlert className="mt-0.5 size-3.5 shrink-0 text-alert" />
+                      <span>{partageErreur}</span>
+                    </p>
+                  )}
+
+                  {partage && (
+                    <p className="flex items-start gap-2 rounded-md border border-ok/40 bg-ok-soft/30 p-3 text-xs text-navy/80">
+                      <MessageCircle
+                        className={`mt-0.5 size-3.5 shrink-0 ${partage.simulation ? "text-warn" : "text-ok"}`}
+                      />
+                      <span>
+                        <span className="font-semibold text-ok">Résumé transmis par WhatsApp.</span>{" "}
+                        {partage.nb_recommandations > 0
+                          ? `Le message accompagne ${partage.nb_recommandations} orientation${
+                              partage.nb_recommandations > 1 ? "s" : ""
+                            } à donner.`
+                          : "Aucun message d'orientation n'a été joint."}{" "}
+                        {partage.simulation && (
+                          <>
+                            Aucun relais WhatsApp n'est configuré : l'envoi a été journalisé, pas
+                            transmis.
+                          </>
+                        )}{" "}
+                        Le compte rendu reste accessible par le portail patient.
+                      </span>
+                    </p>
+                  )}
+
+                  {recommandations && recommandations.length > 0 && (
+                    <ul className="space-y-1.5 rounded-md border border-border bg-muted/20 p-3">
+                      {recommandations.map((reco, index) => (
+                        <li key={`${reco.motif}-${index}`} className="text-xs text-navy/85">
+                          <span className="font-semibold text-foreground">
+                            {reco.pathologie
+                              ? reco.pathologie === "tuberculose"
+                                ? "Tuberculose"
+                                : "Pneumonie"
+                              : "À noter"}
+                            :
+                          </span>{" "}
+                          {reco.texte}
+                          {reco.tags.length > 0 && (
+                            <span className="ml-1.5 font-mono text-[10px] text-muted-foreground">
+                              {reco.tags.join(" · ")}
+                            </span>
+                          )}
+                        </li>
+                      ))}
+                      <li className="border-t border-border/60 pt-1.5 text-[11px] text-muted-foreground italic">
+                        Ces orientations guident la discussion clinique. Elles ne constituent ni un
+                        diagnostic ni une prescription, et le modèle n'est pas calibré.
+                      </li>
+                    </ul>
+                  )}
+                </div>
+              )}
+
+              {erreurApprobation && decision !== "approuve" && (
+                <p className="mt-3 flex items-start gap-2 rounded-md border border-alert/40 bg-alert-soft/40 p-3 text-xs text-alert">
+                  <ShieldAlert className="mt-0.5 size-3.5 shrink-0 text-alert" />
+                  <span>{erreurApprobation}</span>
                 </p>
               )}
 
@@ -658,9 +1098,74 @@ function ResultatContent() {
                 </button>
                 <p className="ml-auto flex items-center gap-1.5 font-mono text-[10px] text-muted-foreground">
                   <Timer className="size-3" />
-                  Examen du {new Date(dossier.horodatage).toLocaleDateString("fr-FR")}
+                  Examen du {formatDateFr(dossier.horodatage)}
                 </p>
               </div>
+            </Panel>
+
+            <Panel
+              title="Contrôle à venir"
+              subtitle="Programmer un suivi sans quitter le compte rendu"
+            >
+              {suiviCree ? (
+                <p className="flex items-start gap-2 rounded-md border border-ok/40 bg-ok-soft/30 p-3 text-xs text-navy/80">
+                  <CalendarCheck className="mt-0.5 size-3.5 shrink-0 text-ok" />
+                  <span>
+                    <span className="font-semibold text-ok">Contrôle programmé</span> le{" "}
+                    {formatDateFr(suiviCree.date_suivi)}
+                    {suiviCree.motif ? ` — ${suiviCree.motif}` : ""}. Il apparaîtra dans la page
+                    Suivi.
+                  </span>
+                </p>
+              ) : (
+                <>
+                  <div className="flex flex-wrap items-end gap-2">
+                    <label className="block">
+                      <span className="mb-1 block font-mono text-[10px] font-bold tracking-[0.12em] text-muted-foreground uppercase">
+                        Date du contrôle
+                      </span>
+                      <input
+                        type="date"
+                        value={dateSuivi}
+                        onChange={(e) => setDateSuivi(e.target.value)}
+                        className="rounded-md border border-border bg-background px-3 py-2 font-mono text-xs text-foreground outline-none focus:border-primary"
+                      />
+                    </label>
+                    <label className="block flex-1">
+                      <span className="mb-1 block font-mono text-[10px] font-bold tracking-[0.12em] text-muted-foreground uppercase">
+                        Motif (facultatif)
+                      </span>
+                      <input
+                        type="text"
+                        value={motifSuivi}
+                        onChange={(e) => setMotifSuivi(e.target.value)}
+                        maxLength={500}
+                        placeholder="Contrôle radiologique à 3 mois"
+                        className="w-full rounded-md border border-border bg-background px-3 py-2 text-xs text-foreground outline-none focus:border-primary"
+                      />
+                    </label>
+                    <button
+                      type="button"
+                      disabled={suiviEnCours || !dateSuivi}
+                      onClick={() => void programmerSuivi()}
+                      className="flex items-center gap-2 rounded-md border border-primary/40 bg-primary/5 px-3 py-2 font-mono text-[11px] font-bold tracking-[0.12em] text-primary uppercase transition-colors hover:bg-primary/10 disabled:opacity-50"
+                    >
+                      {suiviEnCours ? (
+                        <Loader2 className="size-4 animate-spin" />
+                      ) : (
+                        <CalendarPlus className="size-4" />
+                      )}
+                      Programmer
+                    </button>
+                  </div>
+                  {erreurSuivi && (
+                    <p className="mt-2 flex items-start gap-2 rounded-md border border-alert/40 bg-alert-soft/40 p-3 text-xs text-alert">
+                      <ShieldAlert className="mt-0.5 size-3.5 shrink-0 text-alert" />
+                      <span>{erreurSuivi}</span>
+                    </p>
+                  )}
+                </>
+              )}
             </Panel>
           </div>
         </div>

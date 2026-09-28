@@ -117,7 +117,7 @@ function RootShell({ children }: { children: ReactNode }) {
 }
 
 /**
- * Garde post-hydratation : après lecture de la session (localStorage), on
+ * Garde post-hydratation : après lecture de la session (sessionStorage), on
  * vérifie que le chemin courant est autorisé pour le rôle connecté. Couvre le
  * cas d'un rechargement direct d'une page protégée : le `beforeLoad` ne voit
  * pas encore de session au moment du boot, ce contrôle rétablit la sécurité.
@@ -128,7 +128,7 @@ function GardeAcheminement() {
   const [hydrate, setHydrate] = useState(false);
 
   useEffect(() => {
-    hydraterSession(); // lit localStorage une fois, côté client uniquement
+    hydraterSession(); // lit sessionStorage une fois, côté client uniquement
     setHydrate(true);
   }, []);
 

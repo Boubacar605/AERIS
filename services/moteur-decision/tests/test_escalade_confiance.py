@@ -206,3 +206,105 @@ def test_cloud_ambigu_apres_escalade_marque_indetermine():
     assert final.confiance == 0.58
     assert final.indetermine is True
     assert evenement.decision == "arbitrage_a_prevalu"
+
+# ---------------------------------------------------------------------------
+# Destination forcée : le verdict doit rester sur la source imposée
+# ---------------------------------------------------------------------------
+
+def test_destination_forcee_edge_n_escalade_pas_vers_le_cloud(monkeypatch):
+    """force_destination=edge : aucun appel Cloud, le verdict reste local.
+
+    Régression : la destination forcée déclenchait quand même le second avis,
+    si bien que le scénario « Tout-Edge » mesurait en réalité le Cloud (les
+    confidences remontaient à 1.0, signature du modèle Cloud).
+    """
+    _patcher_environnement(monkeypatch)
+    repondeur = _RepondeurInference(
+        {
+            ("edge", "tuberculose"): {"confiance": 0.53},
+            ("edge", "pneumonie"): {"confiance": 0.97},
+            ("cloud", "tuberculose"): {"confiance": 1.0},
+        }
+    )
+    reponse = _lancer_decision(repondeur, monkeypatch, force="edge")
+
+    assert reponse.decision.destination == "edge"
+    assert reponse.decision.second_avis is False
+    assert reponse.escalades == []
+    assert reponse.temps_escalade_ms is None
+
+    # Aucun appel vers le cloud, quelle que soit la pathologie.
+    assert ("cloud", "tuberculose") not in repondeur.appels
+    assert ("cloud", "pneumonie") not in repondeur.appels
+
+    # Le verdict ambigu reste celui de l'edge, marque pour relecture.
+    tb = next(r for r in reponse.resultats if r.pathologie == "tuberculose")
+    assert tb.source == "edge"
+    assert tb.confiance == 0.53
+    assert tb.escalade is False
+    assert tb.indetermine is True
+
+    # La pathologie fiable n'est pas touchée.
+    pn = next(r for r in reponse.resultats if r.pathologie == "pneumonie")
+    assert pn.source == "edge"
+    assert pn.indetermine is False
+
+
+def test_destination_forcee_cloud_n_escalade_pas_vers_edge(monkeypatch):
+    """Symétrique : force_destination=cloud reste sur le Cloud."""
+    _patcher_environnement(monkeypatch)
+    repondeur = _RepondeurInference(
+        {
+            ("cloud", "tuberculose"): {"confiance": 0.50},
+            ("cloud", "pneumonie"): {"confiance": 0.99},
+            ("edge", "tuberculose"): {"confiance": 0.95},
+        }
+    )
+    reponse = _lancer_decision(repondeur, monkeypatch, force="cloud")
+
+    assert reponse.decision.destination == "cloud"
+    assert reponse.decision.second_avis is False
+    assert ("edge", "tuberculose") not in repondeur.appels
+    tb = next(r for r in reponse.resultats if r.pathologie == "tuberculose")
+    assert tb.source == "cloud"
+    assert tb.indetermine is True
+
+
+def test_second_avis_explicite_restaure_le_controle_qualite_force(monkeypatch):
+    """second_avis=true réactive le filet de sécurité malgré la destination forcée."""
+    _patcher_environnement(monkeypatch)
+    repondeur = _RepondeurInference(
+        {
+            ("edge", "tuberculose"): {"confiance": 0.53},
+            ("edge", "pneumonie"): {"confiance": 0.97},
+            ("cloud", "tuberculose"): {"confiance": 0.99},
+        }
+    )
+    monkeypatch.setattr(selecteur, "_appeler_service", repondeur)
+    reponse = asyncio.run(
+        selecteur.decider_destination(b"image", "edge", second_avis=True)
+    )
+
+    assert reponse.decision.destination == "edge"
+    assert reponse.decision.second_avis is True
+    assert ("cloud", "tuberculose") in repondeur.appels
+    tb = next(r for r in reponse.resultats if r.pathologie == "tuberculose")
+    assert tb.source == "cloud"
+    assert tb.escalade is True
+
+
+def test_routage_automatique_conserve_le_second_avis(monkeypatch):
+    """Sans destination forcée, le filet de sécurité reste actif par défaut."""
+    _patcher_environnement(monkeypatch)
+    repondeur = _RepondeurInference(
+        {
+            ("edge", "tuberculose"): {"confiance": 0.53},
+            ("edge", "pneumonie"): {"confiance": 0.97},
+            ("cloud", "tuberculose"): {"confiance": 0.99},
+        }
+    )
+    reponse = _lancer_decision(repondeur, monkeypatch)
+
+    assert reponse.decision.second_avis is True
+    assert ("cloud", "tuberculose") in repondeur.appels
+    assert len(reponse.escalades) == 1

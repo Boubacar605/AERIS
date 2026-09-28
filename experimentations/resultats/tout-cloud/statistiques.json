@@ -1,0 +1,64 @@
+{
+  "nom_scenario": "Tout-Cloud",
+  "nb_requetes_total": 200,
+  "nb_requetesErreur": 0,
+  "nb_requetes_edge": 0,
+  "nb_requetes_cloud": 200,
+  "latence": {
+    "nom": "temps_total_ms",
+    "moyenne": 530.36,
+    "mediane": 458.0,
+    "ecart_type": 797.72,
+    "p95": 609.49,
+    "p99": 728.8,
+    "minimum": 404.19,
+    "maximum": 11715.06,
+    "nb_echantillons": 200
+  },
+  "inference_tb": {
+    "nom": "temps_inference_tb_ms",
+    "moyenne": 271.2,
+    "mediane": 261.56,
+    "ecart_type": 42.72,
+    "p95": 309.63,
+    "p99": 410.64,
+    "minimum": 243.13,
+    "maximum": 640.32,
+    "nb_echantillons": 100
+  },
+  "inference_pn": {
+    "nom": "temps_inference_pn_ms",
+    "moyenne": 328.83,
+    "mediane": 303.61,
+    "ecart_type": 319.78,
+    "p95": 361.01,
+    "p99": 426.75,
+    "minimum": 90.36,
+    "maximum": 3439.27,
+    "nb_echantillons": 100
+  },
+  "cpu_edge": {
+    "nom": "cpu_edge",
+    "moyenne": 0.0,
+    "mediane": 0.0,
+    "ecart_type": 0.0,
+    "p95": 0.0,
+    "p99": 0.0,
+    "minimum": 0.0,
+    "maximum": 0.0,
+    "nb_echantillons": 200
+  },
+  "ram_edge": {
+    "nom": "ram_edge",
+    "moyenne": 0.0,
+    "mediane": 0.0,
+    "ecart_type": 0.0,
+    "p95": 0.0,
+    "p99": 0.0,
+    "minimum": 0.0,
+    "maximum": 0.0,
+    "nb_echantillons": 200
+  },
+  "precision_tb": 80.0,
+  "precision_pn": 90.0
+}

@@ -47,6 +47,9 @@ class ConfigMoteurDecision(BaseSettings):
     jwt_ttl_rafraichissement_jours: int = 7
 
     # OTP patient (acces resultat sans compte)
+    # Les codes ne sont plus soumis a expiration : le patient doit pouvoir
+    # consulter ses resultats indefiniment. `otp_ttl_minutes` est conserve pour
+    # les deploiements existants mais n'est plus applique.
     otp_ttl_minutes: int = 15
     otp_longueur: int = 6
 
@@ -56,11 +59,15 @@ class ConfigMoteurDecision(BaseSettings):
     smtp_utilisateur: str = ""
     smtp_mot_de_passe: str = ""
     smtp_expediteur: str = "aeris@local"
+    # STARTTLS : Gmail (587) l'exige, MailHog (1025) ne l'annonce pas.
+    smtp_start_tls: bool = True
 
     # WhatsApp via le relais AERIS (Baileys, session WhatsApp Web). URL vide
     # = fallback log simulé (même principe que l'email sans SMTP). L'URL
     # réelle (http://relay-whatsapp:3500) est injectée par docker-compose.
     whatsapp_url_relay: str = ""
+    # Secret partagé avec le relais WhatsApp (X-Relay-Secret)
+    whatsapp_relay_secret: str = ""
     # Préfixe téléphonique international appliqué aux numéros sans +/préfixe
     # (ex. "77 123 45 67" -> "221771234567"). Vide = numéro utilisé tel quel.
     whatsapp_prefixe_pays: str = "221"
@@ -71,6 +78,15 @@ class ConfigMoteurDecision(BaseSettings):
     # Compte admin initial (bootstrap au demarrage si aucun admin n'existe)
     admin_initial_email: str = "admin@aeris.local"
     admin_initial_mot_de_passe: str = "Admin@aeris2026"
+
+    # Compte clinicien initial : /routage/analyser et /routage/patient sont
+    # reserves au role clinicien (le role admin est purement IT). Sans ce
+    # bootstrap, aucun compte ne peut passer une radiographie apres un
+    # demarrage vierge : la demonstration et les scenarios d'experimentation
+    # ont besoin d'un clinicien. Meme regle que l'admin : cree seulement si
+    # aucun clinicien n'existe.
+    clinicien_initial_email: str = "clinicien@aeris.local"
+    clinicien_initial_mot_de_passe: str = "Clinicien@aeris2026"
 
     class Config:
         env_file = ".env"

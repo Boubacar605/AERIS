@@ -1,10 +1,14 @@
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import {
   Activity,
+  CalendarClock,
+  ClipboardList,
   FileText,
+  Gauge,
   History,
   Home,
   LayoutGrid,
+  ListChecks,
   LogOut,
   Network,
   RefreshCw,
@@ -123,11 +127,22 @@ const NAV: ReadonlyArray<{
   label: string;
   icon: typeof LayoutGrid;
   roles?: readonly RoleUtilisateur[];
+  /** « Accueil » : ferme la session puis revient à la page publique. */
+  deconnecte?: boolean;
 }> = [
+  { to: "/", label: "Accueil", icon: Home, deconnecte: true },
   { to: "/dashboard", label: "Dashboard", icon: LayoutGrid, roles: ["admin"] },
-  { to: "/", label: "Présentation", icon: Home },
+  // Tableau de bord du poste : l'état de la charge avant d'ouvrir quoi que ce soit.
+  { to: "/poste", label: "Poste", icon: Gauge, roles: ["clinicien"] },
   { to: "/diagnostic", label: "Diagnostic", icon: ScanLine, roles: ["clinicien"] },
   { to: "/resultat", label: "Résultat", icon: FileText, roles: ["clinicien"] },
+  // File de triage : la première porte du poste, ce qui attend une décision.
+  { to: "/triage", label: "Triage", icon: ListChecks, roles: ["clinicien"] },
+  // Dossier et échéances : le quotidien du clinicien, entre deux examens.
+  { to: "/patients", label: "Patients", icon: UserRound, roles: ["clinicien"] },
+  { to: "/suivi", label: "Suivi", icon: CalendarClock, roles: ["clinicien"] },
+  // Bilan de charge du poste : où en est la file, et ce que le protocole a tranché.
+  { to: "/protocole", label: "Protocole", icon: ClipboardList, roles: ["clinicien"] },
   { to: "/historique", label: "Historique", icon: History, roles: ["admin", "clinicien"] },
   // Sous-menus d'administration (réservés à l'admin IT).
   { to: "/admin/utilisateurs", label: "Utilisateurs", icon: Users, roles: ["admin"] },
@@ -136,6 +151,26 @@ const NAV: ReadonlyArray<{
   { to: "/architecture", label: "Architecture", icon: Network, roles: ["admin"] },
   { to: "/settings", label: "Settings", icon: Settings, roles: ["admin"] },
 ];
+
+/**
+ * « Accueil » n'est pas une simple navigation : quitter la plateforme doit
+ * terminer la session, sinon le poste reste connecté après une fermeture
+ * d'onglet.
+ *
+ * L'ordre est déterminant : on navigue d'abord, on déconnecte ensuite. Vider la
+ * session alors que l'URL est encore un chemin protégé (`/dashboard`,
+ * `/monitoring`…) déclenche la garde post-hydratation de `__root.tsx`, qui lit
+ * `window.location.pathname` et renvoie vers `/login` : c'était la landing page
+ * qui se transformait en page de connexion. Une fois sur `/`, le chemin n'est
+ * plus protégé et la garde ne redirige plus.
+ */
+function useRetourAccueil() {
+  const navigate = useNavigate();
+  return useCallback(async () => {
+    await navigate({ to: "/" });
+    deconnecter();
+  }, [navigate]);
+}
 
 /** Navigation visible pour un rôle donné (null = aucune session). */
 function navigationPour(role: RoleUtilisateur | null) {
@@ -195,6 +230,7 @@ function BlocUtilisateur() {
 function Sidebar() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const role = useRole();
+  const retourAccueil = useRetourAccueil();
   const entrées = navigationPour(role);
   return (
     <aside className="sticky top-0 hidden h-screen w-[15rem] shrink-0 flex-col border-r border-navy-line bg-navy text-navy-foreground md:flex">
@@ -205,24 +241,36 @@ function Sidebar() {
       </div>
 
       <nav className="flex-1 space-y-0.5 overflow-y-auto p-2.5">
-        {entrées.map(({ to, label, icon: Icon }) => {
+        {entrées.map(({ to, label, icon: Icon, deconnecte }) => {
           const active = to === "/" ? pathname === "/" : pathname.startsWith(to);
-          return (
-            <Link
-              key={to}
-              to={to}
-              className={cn(
-                "group relative flex items-center gap-2.5 rounded-md px-2.5 py-2 text-[13px] font-medium transition-colors",
-                active
-                  ? "bg-white/10 text-navy-foreground"
-                  : "text-navy-muted hover:bg-white/5 hover:text-navy-foreground",
-              )}
-            >
+          const classes = cn(
+            "group relative flex items-center gap-2.5 rounded-md px-2.5 py-2 text-[13px] font-medium transition-colors",
+            active
+              ? "bg-white/10 text-navy-foreground"
+              : "text-navy-muted hover:bg-white/5 hover:text-navy-foreground",
+          );
+          const contenu = (
+            <>
               {active && (
                 <span className="absolute top-1.5 bottom-1.5 -left-0.5 w-0.5 rounded-full bg-cloud" />
               )}
               <Icon className="size-4" />
               {label}
+            </>
+          );
+          return deconnecte ? (
+            <button
+              key={to}
+              type="button"
+              onClick={() => void retourAccueil()}
+              title="Revenir à l'accueil et se déconnecter"
+              className={cn(classes, "w-full cursor-pointer text-left")}
+            >
+              {contenu}
+            </button>
+          ) : (
+            <Link key={to} to={to} className={classes}>
+              {contenu}
             </Link>
           );
         })}
@@ -243,20 +291,29 @@ function MobileNav() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const role = useRole();
   const navigate = useNavigate();
+  const retourAccueil = useRetourAccueil();
   const entrées = navigationPour(role);
   return (
     <div className="sticky top-0 z-20 flex gap-1 overflow-x-auto border-b border-navy-line bg-navy px-3 py-2 md:hidden">
-      {entrées.map(({ to, label, icon: Icon }) => {
+      {entrées.map(({ to, label, icon: Icon, deconnecte }) => {
         const active = to === "/" ? pathname === "/" : pathname.startsWith(to);
-        return (
-          <Link
+        const classes = cn(
+          "flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs whitespace-nowrap",
+          active ? "bg-white/12 text-navy-foreground" : "text-navy-muted",
+        );
+        return deconnecte ? (
+          <button
             key={to}
-            to={to}
-            className={cn(
-              "flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs whitespace-nowrap",
-              active ? "bg-white/12 text-navy-foreground" : "text-navy-muted",
-            )}
+            type="button"
+            onClick={() => void retourAccueil()}
+            title="Revenir à l'accueil et se déconnecter"
+            className={cn(classes, "cursor-pointer")}
           >
+            <Icon className="size-3.5" />
+            {label}
+          </button>
+        ) : (
+          <Link key={to} to={to} className={classes}>
             <Icon className="size-3.5" />
             {label}
           </Link>

@@ -94,8 +94,11 @@ def test_normalisation_numero(entree, attendu):
 # Texte du message OTP
 # ---------------------------------------------------------------------------
 
-def test_message_otp_contient_code_nom_url_et_validite():
-    """Le message est en français, marqué AERIS, avec tout ce qu'il faut."""
+def test_message_otp_contient_code_nom_url_et_permanence():
+    """Le message est en français, marqué AERIS, avec tout ce qu'il faut.
+
+    Le code étant permanent, le message n'annonce plus de durée de validité.
+    """
     message = composer_message_otp(
         "123456",
         nom_patient="Awa Diop",
@@ -104,7 +107,8 @@ def test_message_otp_contient_code_nom_url_et_validite():
     assert "123456" in message
     assert "Awa Diop" in message
     assert "https://aeris.demo.sn/resultat?otp=123456" in message
-    assert str(config.otp_ttl_minutes) in message
+    assert "n'expire pas" in message
+    assert str(config.otp_ttl_minutes) not in message
     assert "AERIS" in message
 
 

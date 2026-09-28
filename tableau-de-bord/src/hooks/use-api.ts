@@ -8,15 +8,27 @@
  * - "indisponible" : le backend est injoignable, aucune valeur de secours.
  */
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import {
   fetchAPI,
+  listerDossiersPatients,
+  lireFileTriage,
+  lireProtocoleValidation,
+  lireSynthesePoste,
+  listerSuivis,
+  lireChronologiePatient,
   obtenirSeuils,
+  type ChronologiePatient,
   type DiagnosticHistorique,
+  type DossierClinique,
   type EtatSysteme,
   type ReponseHistorique,
   type SeuilsMoteur,
+  type FileTriage,
+  type ProtocoleValidation,
+  type SynthesePoste,
+  type SuiviClinique,
 } from "@/lib/api";
 import type { InferenceRecord, Telemetry } from "@/lib/aeris";
 
@@ -230,7 +242,19 @@ function statsDepuisBackend(s: ReponseHistorique["statistiques"]): StatsHistoriq
   };
 }
 
-export function useHistoriqueLive(intervalMs = 5000): {
+/**
+ * Journal des diagnostics, rafraîchi périodiquement.
+ *
+ * @param intervalMs période de rafraîchissement (le tableau de bord suit le
+ *   temps réel, l'historique se contente d'un rythme plus calme).
+ * @param limite nombre de diagnostics demandés au moteur. La fenêtre mémoire
+ *   du moteur est plafonnée à 100 entrées : au-delà, seule la lecture du
+ *   journal durable PostgreSQL remonte les diagnostics plus anciens.
+ */
+export function useHistoriqueLive(
+  intervalMs = 5000,
+  limite = 100,
+): {
   records: InferenceRecord[];
   statistiques: StatsHistorique;
   etat: EtatConnexion;
@@ -242,8 +266,8 @@ export function useHistoriqueLive(intervalMs = 5000): {
 
   async function charger() {
     try {
-      const hist = await fetchAPI<ReponseHistorique>("/historique");
-      setRecords(hist.derniers_diagnostics.flatMap(mapDiagnosticVersRecords).slice(0, 40));
+      const hist = await fetchAPI<ReponseHistorique>(`/historique?limite=${limite}`);
+      setRecords(hist.derniers_diagnostics.flatMap(mapDiagnosticVersRecords).slice(0, limite));
       setStatistiques(statsDepuisBackend(hist.statistiques));
       setEtat("live");
     } catch {
@@ -323,4 +347,204 @@ export function useSeuilsLive(intervalMs = 20_000): {
   };
 
   return { seuils, etat, refresh };
+}
+
+/* ------------------- Dossier clinique et suivis (Vague 1) ---------------- */
+
+/**
+ * Dossiers patients vus par le clinicien.
+ *
+ * Rafraîchissement manuel et non cyclique : la liste sert à orienter la
+ * priorité du poste, elle n'a pas vocation à être un flux temps réel. Un
+ * polling gaspillerait le trafic du réseau faible — le contexte même du
+ * projet — pour une information qui change au rythme des examens, pas à la
+ * seconde.
+ */
+export function useDossiersPatients(): {
+  dossiers: DossierClinique[];
+  etat: EtatConnexion;
+  charger: () => Promise<void>;
+} {
+  const [dossiers, setDossiers] = useState<DossierClinique[]>([]);
+  const [etat, setEtat] = useState<EtatConnexion>("chargement");
+
+  const charger = useCallback(async () => {
+    try {
+      setDossiers(await listerDossiersPatients());
+      setEtat("live");
+    } catch {
+      setDossiers([]);
+      setEtat("indisponible");
+    }
+  }, []);
+
+  useEffect(() => {
+    void charger();
+  }, [charger]);
+
+  return { dossiers, etat, charger };
+}
+
+/**
+ * Chronologie d'un dossier, rechargée à la demande.
+ *
+ * Elle n'est demandée qu'au clic sur une ligne : charger 6examens de 6patients
+ * pour n'en afficher qu'un serait du gaspillage sur une liaison satellite.
+ */
+export function useChronologiePatient(codePatient: string | null): {
+  chronologie: ChronologiePatient | null;
+  etat: EtatConnexion;
+  charger: () => Promise<void>;
+} {
+  const [chronologie, setChronologie] = useState<ChronologiePatient | null>(null);
+  const [etat, setEtat] = useState<EtatConnexion>("chargement");
+
+  const charger = useCallback(async () => {
+    if (!codePatient) {
+      setChronologie(null);
+      setEtat("chargement");
+      return;
+    }
+    try {
+      setChronologie(await lireChronologiePatient(codePatient));
+      setEtat("live");
+    } catch {
+      setChronologie(null);
+      setEtat("indisponible");
+    }
+  }, [codePatient]);
+
+  useEffect(() => {
+    void charger();
+  }, [charger]);
+
+  return { chronologie, etat, charger };
+}
+
+/**
+ * Contrôles à venir.
+ *
+ * Rafraîchissement après chaque écriture (programmer, clore) plutôt que
+ * périodique : un suivi bouge parce qu'un soignant l'agit, pas parce que
+ * l'heure passe.
+ */
+export function useSuivisCliniques(): {
+  suivis: SuiviClinique[];
+  etat: EtatConnexion;
+  charger: () => Promise<void>;
+} {
+  const [suivis, setSuivis] = useState<SuiviClinique[]>([]);
+  const [etat, setEtat] = useState<EtatConnexion>("chargement");
+
+  const charger = useCallback(async () => {
+    try {
+      setSuivis(await listerSuivis());
+      setEtat("live");
+    } catch {
+      setSuivis([]);
+      setEtat("indisponible");
+    }
+  }, []);
+
+  useEffect(() => {
+    void charger();
+  }, [charger]);
+
+  return { suivis, etat, charger };
+}
+
+/**
+ * File de triage (Vague 2) : la file est rafraîchie par l'utilisateur, pas en
+ * boucle. Un balayage automatique effacerait la ligne qu'il est en train
+ * de valider.
+ */
+export function useFileTriage(seuilAlerteJours = 2): {
+  file: FileTriage | null;
+  etat: EtatConnexion;
+  recharger: () => Promise<void>;
+} {
+  const [file, setFile] = useState<FileTriage | null>(null);
+  const [etat, setEtat] = useState<EtatConnexion>("chargement");
+
+  const recharger = useCallback(async () => {
+    try {
+      setFile(await lireFileTriage(seuilAlerteJours));
+      setEtat("live");
+    } catch {
+      setFile(null);
+      setEtat("indisponible");
+    }
+  }, [seuilAlerteJours]);
+
+  useEffect(() => {
+    void recharger();
+  }, [recharger]);
+
+  return { file, etat, recharger };
+}
+
+/**
+ * Agrégats de protocole (Vague 2). Instantané, pas de polling : ces chiffres
+ * changent quand un clinicien valide, donc à sa main. Un balayage automatique
+ * ferait clignoter les compteurs pendant la lecture.
+ */
+export function useProtocoleValidation(): {
+  protocole: ProtocoleValidation | null;
+  etat: EtatConnexion;
+  recharger: () => Promise<void>;
+} {
+  const [protocole, setProtocole] = useState<ProtocoleValidation | null>(null);
+  const [etat, setEtat] = useState<EtatConnexion>("chargement");
+
+  const recharger = useCallback(async () => {
+    try {
+      setProtocole(await lireProtocoleValidation());
+      setEtat("live");
+    } catch {
+      setProtocole(null);
+      setEtat("indisponible");
+    }
+  }, []);
+
+  useEffect(() => {
+    void recharger();
+  }, [recharger]);
+
+  return { protocole, etat, recharger };
+}
+
+/**
+ * Synthèse du poste (tableau de bord clinicien).
+ *
+ * Instantané, comme `useProtocoleValidation` : ces compteurs changent quand un
+ * clinicien valide un examen, donc à sa main. Un balayage automatique ferait
+ * clignoter les chiffres sous les yeux de celui qui les lit — et pourrait
+ * rendre un compteur incohérent avec la ligne qu'il vient de valider.
+ *
+ * `synthese` reste `null` en cas d'échec : la page affiche « indisponible »
+ * plutôt que des zéros, qui se liraient comme une file vide.
+ */
+export function useSynthesePoste(seuilAlerteJours = 2): {
+  synthese: SynthesePoste | null;
+  etat: EtatConnexion;
+  recharger: () => Promise<void>;
+} {
+  const [synthese, setSynthese] = useState<SynthesePoste | null>(null);
+  const [etat, setEtat] = useState<EtatConnexion>("chargement");
+
+  const recharger = useCallback(async () => {
+    try {
+      setSynthese(await lireSynthesePoste(seuilAlerteJours));
+      setEtat("live");
+    } catch {
+      setSynthese(null);
+      setEtat("indisponible");
+    }
+  }, [seuilAlerteJours]);
+
+  useEffect(() => {
+    void recharger();
+  }, [recharger]);
+
+  return { synthese, etat, recharger };
 }

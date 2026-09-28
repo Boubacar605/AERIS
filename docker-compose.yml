@@ -132,6 +132,8 @@ services:
       - JWT_SECRET=${JWT_SECRET:-aeris-dev-secret-a-changer}
       - ADMIN_INITIAL_EMAIL=${ADMIN_INITIAL_EMAIL:-admin@aeris.local}
       - ADMIN_INITIAL_MOT_DE_PASSE=${ADMIN_INITIAL_MOT_DE_PASSE:-Admin@aeris2026}
+      - CLINICIEN_INITIAL_EMAIL=${CLINICIEN_INITIAL_EMAIL:-clinicien@aeris.local}
+      - CLINICIEN_INITIAL_MOT_DE_PASSE=${CLINICIEN_INITIAL_MOT_DE_PASSE:-Clinicien@aeris2026}
       - OTP_TTL_MINUTES=${OTP_TTL_MINUTES:-15}
       - SMTP_HOTE=${SMTP_HOTE:-mailhog}
       - SMTP_PORT=${SMTP_PORT:-1025}
@@ -140,6 +142,7 @@ services:
       - SMTP_EXPEDITEUR=${SMTP_EXPEDITEUR:-aeris@local}
       # Canal WhatsApp via le relais AERIS (Baileys) — vide = simulation log
       - WHATSAPP_URL_RELAY=${WHATSAPP_URL_RELAY:-http://relay-whatsapp:3500}
+      - WHATSAPP_RELAY_SECRET=${WHATSAPP_RELAY_SECRET:-aeris-dev-secret-whatsapp}
       - WHATSAPP_PREFIXE_PAYS=${WHATSAPP_PREFIXE_PAYS:-221}
       - URL_TABLEAU_DE_BORD=${TABLEAU_DE_BORD_PUBLIQUE:-http://localhost:${TABLEAU_DE_BORD_PORT:-3000}}
     depends_on:
@@ -180,6 +183,8 @@ services:
     restart: unless-stopped
     ports:
       - "${RELAY_WHATSAPP_PORT:-3500}:3500"
+    environment:
+      - SECRET_RELAY=${WHATSAPP_RELAY_SECRET:-aeris-dev-secret-whatsapp}
     volumes:
       - aeris-whatsapp-session:/app/.wwebjs_auth
     profiles:

@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { exigerRole } from "@/lib/authentification";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Activity,
   ArrowUpRight,
@@ -24,8 +24,10 @@ import { useHistoriqueLive } from "@/hooks/use-api";
 import {
   uploadImage,
   trouverOuCreerPatient,
+  rechercherPatientParTelephone,
   type EnTetePatient,
   type EvenementEscalade,
+  type FichePatientTelephonique,
   type FiltrageSpecialistes,
   type ReponseEnTetePatient,
   type ReponseRoutage,
@@ -353,9 +355,16 @@ function DiagnosticContent() {
   const [patientEnrole, setPatientEnrole] = useState<ReponseEnTetePatient | null>(null);
   const [enregistrementEnCours, setEnregistrementEnCours] = useState(false);
   const [erreurEnTete, setErreurEnTete] = useState<string | null>(null);
+  // Fiche retrouvée par le numéro pendant la saisie : permet de proposer
+  // l'auto-remplissage avant même de valider l'en-tête.
+  const [ficheTrouvee, setFicheTrouvee] = useState<FichePatientTelephonique | null>(null);
+  const [suggestionFiche, setSuggestionFiche] = useState<FichePatientTelephonique | null>(null);
+  const rechercheRef = useRef<AbortController | null>(null);
   const [fichier, setFichier] = useState<File | null>(null);
   const imagePreviewUrl = useMemo(() => (fichier ? URL.createObjectURL(fichier) : null), [fichier]);
   const [resultat, setResultat] = useState<ResultatAnalyse | null>(null);
+  /** Examen créé en base pour cette analyse : cible de la décision clinique (Vague 1). */
+  const [idExamen, setIdExamen] = useState<number | null>(null);
   const [running, setRunning] = useState(false);
   const [step, setStep] = useState(-1);
   const [erreurLive, setErreurLive] = useState(false);
@@ -383,6 +392,65 @@ function DiagnosticContent() {
    * Le code patient est généré par le moteur ; un téléphone déjà connu réutilise
    * le compte existant (aucun doublon).
    */
+  /**
+   * Auto-remplissage : à la saisie d'un numéro déjà connu, on propose la
+   * fiche existante au lieu d'exiger une ressaisie et de risquer un 409.
+   *
+   * La proposition reste explicite (bouton « Reprendre cette fiche ») : on ne
+   * réécrit jamais l'identité derrière le dos du clinicien, et le refus de
+   * rattachement à une autre personne reste la règle côté moteur.
+   */
+  const rechercherFicheExistante = useCallback(async (telephone: string) => {
+    const chiffres = telephone.replace(/\D/g, "");
+    if (chiffres.length < 9) {
+      setFicheTrouvee(null);
+      setSuggestionFiche(null);
+      return;
+    }
+    rechercheRef.current?.abort();
+    const controleur = new AbortController();
+    rechercheRef.current = controleur;
+    try {
+      const fiche = await rechercherPatientParTelephone(telephone, controleur.signal);
+      if (controleur.signal.aborted) return;
+      setFicheTrouvee(fiche.trouve ? fiche : null);
+      setSuggestionFiche(fiche.trouve ? fiche : null);
+    } catch {
+      // Recherche opportuniste : un échec réseau ne doit pas bloquer la saisie.
+      if (!controleur.signal.aborted) setFicheTrouvee(null);
+    }
+  }, []);
+
+  // Anti-rebond : on ne requête qu'une fois la saisie stabilisée.
+  useEffect(() => {
+    const minuteur = setTimeout(() => {
+      void rechercherFicheExistante(enTete.telephone);
+    }, 400);
+    return () => clearTimeout(minuteur);
+  }, [enTete.telephone, rechercherFicheExistante]);
+
+  useEffect(() => {
+    return () => rechercheRef.current?.abort();
+  }, []);
+
+  /** Applique la fiche retrouvée à l'en-tête (identité + email + naissance). */
+  const reprendreFicheExistante = () => {
+    if (!suggestionFiche) return;
+    const nom = suggestionFiche.nom ?? "";
+    const prenom = suggestionFiche.prenom ?? "";
+    setEnTete((precedent) => ({
+      ...precedent,
+      // Fiche ancienne : seul nom_complet est disponible, on l'affiche tel quel
+      // dans le champ nom pour que le clinicien puisse le corriger si besoin.
+      nom: nom || suggestionFiche.nom_complet || "",
+      prenom,
+      email: suggestionFiche.email ?? precedent.email,
+      date_naissance: suggestionFiche.date_naissance ?? precedent.date_naissance,
+    }));
+    setSuggestionFiche(null);
+    setErreurEnTete(null);
+  };
+
   const enregistrerPatient = async () => {
     if (enregistrementEnCours) return;
     setErreurEnTete(null);
@@ -401,10 +469,16 @@ function DiagnosticContent() {
       };
       const reponse = await trouverOuCreerPatient(enTetePatient);
       setPatientEnrole(reponse);
-    } catch {
-      setErreurEnTete(
-        "Enregistrement impossible — moteur injoignable ou numéro de téléphone invalide.",
-      );
+    } catch (e: unknown) {
+      // `ApiError.message` contient désormais le `detail` renvoyé par le
+      // moteur (numéro déjà attribué à une autre identité, email utilisé,
+      // droits insuffisants…). L'afficher évite un message arbitraire qui
+      // laisse croire à un numéro invalide.
+      const message =
+        e instanceof Error && e.message
+          ? e.message
+          : "Enregistrement impossible — moteur injoignable ou numéro de téléphone invalide.";
+      setErreurEnTete(message);
     } finally {
       setEnregistrementEnCours(false);
     }
@@ -441,6 +515,7 @@ function DiagnosticContent() {
       );
       // La notification OTP, elle, n'est déclenchée que par l'approbation du
       // clinicien (page Résultat) — jamais par l'analyse.
+      setIdExamen(reponse.id_examen ?? null);
       setResultat({
         destination: reponse.decision.destination,
         raison: reponse.decision.raison,
@@ -459,6 +534,7 @@ function DiagnosticContent() {
     } catch {
       // Moteur injoignable : aucun résultat n'est fabriqué.
       setResultat(null);
+      setIdExamen(null);
       setErreurLive(true);
     } finally {
       setRunning(false);
@@ -470,6 +546,7 @@ function DiagnosticContent() {
     purgeTimers();
     setStep(-1);
     setResultat(null);
+    setIdExamen(null);
     setErreurLive(false);
   };
 
@@ -486,7 +563,9 @@ function DiagnosticContent() {
       patient: {
         code_patient: patientEnrole.code_patient,
         nom_complet: patientEnrole.nom_complet,
+        id_patient: patientEnrole.id_patient,
       },
+      id_examen: idExamen,
     });
     navigate({ to: "/resultat", search: {} });
   };
@@ -576,10 +655,52 @@ function DiagnosticContent() {
                     type="tel"
                     inputMode="tel"
                     value={enTete.telephone}
-                    onChange={(e) => setEnTete({ ...enTete, telephone: e.target.value })}
+                    onChange={(e) => {
+                      setEnTete({ ...enTete, telephone: e.target.value });
+                      // Toute modification du numéro invalide la fiche
+                      // proposée : elle ne correspond plus à la saisie.
+                      setSuggestionFiche(null);
+                      setFicheTrouvee(null);
+                      setPatientEnrole(null);
+                    }}
+                    onBlur={(e) => void rechercherFicheExistante(e.target.value)}
                     placeholder="77 123 45 67"
                     className="mt-1.5 w-full rounded-md border border-border bg-background px-3 py-2 font-mono text-[11px] outline-none placeholder:text-muted-foreground/50 focus:border-primary/60"
                   />
+
+                  {/* Numéro déjà connu : proposition de reprendre la fiche. */}
+                  {suggestionFiche && !patientEnrole && (
+                    <div className="mt-2 rounded-md border border-warn/30 bg-warn-soft/40 px-3 py-2">
+                      <p className="flex items-start gap-1.5 font-mono text-[10px] text-warn">
+                        <Info className="mt-0.5 size-3.5 shrink-0" />
+                        <span>
+                          Ce numéro est déjà rattaché à{" "}
+                          <span className="font-bold">{suggestionFiche.code_patient}</span> —{" "}
+                          {suggestionFiche.nom_complet ||
+                            `${suggestionFiche.prenom ?? ""} ${suggestionFiche.nom ?? ""}`}
+                          .
+                        </span>
+                      </p>
+                      <button
+                        type="button"
+                        onClick={reprendreFicheExistante}
+                        className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-md border border-primary/40 bg-primary/5 px-2 py-1.5 font-mono text-[10px] font-bold tracking-[0.12em] text-primary uppercase transition-opacity hover:bg-primary/10"
+                      >
+                        <UserCheck className="size-3" />
+                        Reprendre cette fiche
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Fiche déjà reprise : rappel de l'attachement. */}
+                  {ficheTrouvee && !suggestionFiche && !patientEnrole && (
+                    <p className="mt-2 flex items-start gap-1.5 font-mono text-[10px] text-muted-foreground">
+                      <Info className="mt-0.5 size-3.5 shrink-0" />
+                      Identité déjà renseignée pour{" "}
+                      <span className="font-bold text-ok">{ficheTrouvee.code_patient}</span>.
+                      Validez l'enregistrement pour rattacher l'examen à cette fiche.
+                    </p>
+                  )}
                 </label>
               </div>
 

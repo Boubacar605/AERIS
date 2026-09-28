@@ -14,6 +14,12 @@ import type { ResultatAnalyse } from "@/lib/api";
 export type DossierPatient = {
   code_patient: string;
   nom_complet: string | null;
+  /**
+   * Identifiant base du patient : cible d'un suivi programmé depuis la page
+   * Résultat. Absent d'un dossier produit avant la Vague 1, où la
+   * programmation est alors refusée plutôt que devinée depuis le code.
+   */
+  id_patient?: number | null;
 };
 
 export type DossierResultat = {
@@ -25,6 +31,13 @@ export type DossierResultat = {
   horodatage: string;
   /** Patient lié à l'examen (code AER-AAAA-NNNN) : sert à l'approbation OTP. */
   patient: DossierPatient;
+  /**
+   * Examen validé côté base (Vague 1) : c'est lui que la décision clinique
+   * porte. Un dossier sans identifiant provient d'un examen antérieur à la
+   * Vague 1 ; l'approbation est alors refusée plutôt que d'approuver le
+   * dossier entier par défaut.
+   */
+  id_examen?: number | null;
 };
 
 let dossier: DossierResultat | null = null;

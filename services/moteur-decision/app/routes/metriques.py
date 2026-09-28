@@ -20,16 +20,20 @@ from app.logique_routage.evaluateur_reseau import (
 )
 from app.logique_routage.evaluateur_ressources import obtenir_metriques_completes
 from app import persistance
+from app.logique_routage import registre_diagnostics
 from app.logique_routage.registre_diagnostics import (
-    CAPACITE_HISTORIQUE,
     metriques_temps_reel,
     obtenir_derniers_diagnostics,
-    statistiques,
 )
 from app.logique_routage.selecteur_edge_cloud import _appliquer_regles
 from app.schemas.schemas_routage import MetriquesSysteme
 
 routeur_metriques = APIRouter(tags=["Metriques"])
+
+# Taille de lecture par defaut de l'historique. Le registre memoire se limite a
+# CAPACITE_HISTORIQUE (100) ; le journal durable va plus loin pour que la page
+# « Historique » remonte au-dela de la derniere salve de requetes.
+JOURNAL_DURABLE_LIMITE = 200
 
 
 @routeur_metriques.get("/etat-systeme")
@@ -72,6 +76,12 @@ async def obtenir_etat_systeme(
         ]
     )
 
+    # Statistiques durables (base) pour que le tableau de bord et la page
+    # « Historique » affichent le meme total ; repli sur la fenetre memoire.
+    statistiques = (
+        await persistance.statistiques_durables() or registre_diagnostics.statistiques()
+    )
+
     return {
         "edge": metriques_edge,
         "cloud": {
@@ -79,7 +89,7 @@ async def obtenir_etat_systeme(
             "latence_ms": latence,
         },
         "tempreel": metriques_temps_reel(),
-        "statistiques": statistiques(),
+        "statistiques": statistiques,
         "decision": {
             "destination": destination,
             "raison": raison,
@@ -90,18 +100,30 @@ async def obtenir_etat_systeme(
 
 @routeur_metriques.get("/historique")
 async def obtenir_historique(
-    limite: Annotated[int, Query(ge=1, le=500)] = CAPACITE_HISTORIQUE,
+    limite: Annotated[int, Query(ge=1, le=500)] = JOURNAL_DURABLE_LIMITE,
     _=Depends(exiger_role("admin", "clinicien")),
 ) -> dict:
     """Retourne les derniers diagnostics realises par le moteur.
 
-    Le buffer circulaire conserve au maximum les ``CAPACITE_HISTORIQUE``
-    diagnostics les plus recents (defaut : 100). Les statistiques accompagnent
-    la liste pour alimenter directement les compteurs du tableau de bord.
+    La lecture est faite dans PostgreSQL : l'historique est le journal durable
+    du systeme, et non la fenetre circulaire en memoire (100 entrees) que le
+    moteur rehydrate au demarrage. Un scenario de charge ecrase cette fenetre
+    en quelques minutes et masquait alors tout l'historique anterieur, alors
+    meme qu'il etait correctement persiste.
+
+    Si la base est indisponible, on se rabat sur la fenetre memoire plutot que
+    de renvoyer une erreur : la page reste utilisable en mode degrade.
     """
+    journal = await persistance.recuperer_diagnostics_recents(limite)
+    if journal is None:
+        journal = obtenir_derniers_diagnostics(limite)
+        statistiques = registre_diagnostics.statistiques()
+    else:
+        statistiques = await persistance.statistiques_durables() or registre_diagnostics.statistiques()
+
     return {
-        "derniers_diagnostics": obtenir_derniers_diagnostics(limite),
-        "statistiques": statistiques(),
+        "derniers_diagnostics": journal,
+        "statistiques": statistiques,
     }
 
 

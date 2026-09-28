@@ -1,0 +1,1 @@
+- [Pas d'attribution IA](memory/pas-attribution-ia.md) — règle de commit

@@ -1,7 +1,8 @@
 """Route publique d'acces aux resultats patient via OTP.
 
 Pas d'authentification requise : le code OTP + le contact (email ou numero
-WhatsApp) suffisent. Le code est consomme a la premiere utilisation.
+WhatsApp) suffisent. Le code est permanent et reutilisable : le patient peut
+consulter ses resultats autant de fois qu'il le souhaite.
 """
 
 from fastapi import APIRouter, HTTPException, Query
@@ -31,7 +32,7 @@ async def _verifier_et_renvoyer(code_otp: str, email: str | None, telephone: str
         )
 
     destination = email or normaliser_numero(telephone or "")
-    patient = await persistance.verifier_et_consommer_otp(
+    patient = await persistance.verifier_otp(
         code=code_otp,
         destination=destination,
     )
@@ -39,11 +40,16 @@ async def _verifier_et_renvoyer(code_otp: str, email: str | None, telephone: str
     if not patient:
         raise HTTPException(
             status_code=401,
-            detail="Code OTP invalide, expire ou epuise",
+            detail="Code OTP invalide ou trop de tentatives erronees",
         )
 
     resultats = await persistance.obtenir_resultats_par_patient(patient.id_patient)
 
+    # Vague 2 : le patient ne lit que le dernier examen APPROUVE. Un examen
+    # desapprove ou jamais valide n'est pas un resultat livrable, et un 401
+    # muet le laisserait croire a une panne alors que la decision est toute
+    # autre. Si rien n'a ete approuve, la liste est vide et le front affiche un
+    # message explicite (« aucun resultat valide pour le moment »).
     return {
         "patient": {
             "code_patient": patient.code_patient,

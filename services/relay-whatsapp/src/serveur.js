@@ -23,6 +23,7 @@ const qrcodeTerminal = require("qrcode-terminal");
 
 const PORT = Number(process.env.PORT || 3500);
 const DOSSIER_SESSION = process.env.DOSSIER_SESSION || "/app/.wwebjs_auth";
+const SECRET_RELAY = process.env.SECRET_RELAY || "";
 
 const JID_PATTERN = /^\d{8,15}$/;
 const MAX_MESSAGE = 1000;
@@ -34,6 +35,14 @@ const DELAI_SIENS = Number(process.env.DELAI_ENTRE_MESSAGES_MS || 3000);
 const TIMEOUT_OPERATION_MS = Number(process.env.TIMEOUT_OPERATION_MS || 35000);
 const TIMEOUT_SONDE_MS = Number(process.env.TIMEOUT_SONDE_MS || 12000);
 const DELAI_LIVRAISON_MS = Number(process.env.DELAI_LIVRAISON_MS || 120000); // 2 min
+// Fenêtre d'attente d'un client prêt avant de refuser un envoi. Passé ce
+// délai, l'API répond 503 : le moteur remonte un échec explicite plutôt
+// qu'une erreur opaque.
+const ATTENTE_PRET_MS = Number(process.env.ATTENTE_PRET_MS || 8000);
+// Espacement minimal entre deux creations de client (garde-fou anti-boucle).
+const DELAI_RECONNEXION_MS = Number(process.env.DELAI_RECONNEXION_MS || 20000);
+// Durée de conservation d'un message suivi (bornage mémoire + /statut).
+const DUREE_SUIVI_MS = Number(process.env.DUREE_SUIVI_MS || 3600000);
 
 /** Race entre une promesse et un délai : rejette si la promesse traîne. */
 function avecTimeout(promise, ms, libelle) {
@@ -97,8 +106,24 @@ function deverrouillerProfil() {
   }
 }
 
+/**
+ * Tue le Chromium d'un client donné : un `destroy()` qui dépasse le délai laisse
+ * un navigateur fantôme qui garde le profil de session verrouillé. Le
+ * Chromium suivant démarre alors sans jamais exposer son endpoint WS et
+ * `initialize()` échoue définitivement — c'est ce qui rendait le relais
+ * muet après un seul incident.
+ */
+function tuerNavigateur(clientCible) {
+  try {
+    clientCible?.puppeteer?.browser?.process()?.kill("SIGKILL");
+  } catch {}
+}
+
 let client = null; // client whatsapp-web.js actif
-let etatConnexion = "deconnecte"; // open | en_attente | deconnecte
+let etatConnexion = "deconnecte"; // ouvert | en_attente | deconnecte
+let pretDepuis = 0; // dernier « ready » observé (0 = client jamais prêt)
+let qrEnAttente = false; // un QR est affiché : recréer le client l'annulerait
+let dernierRelance = 0; // horodatage de la dernière création de client
 
 // Suivi de chaque message envoyé
 const messagesSuivis = new Map();
@@ -142,6 +167,7 @@ function creerClient() {
 
   c.on("qr", (qr) => {
     etatConnexion = "en_attente";
+    qrEnAttente = true;
     log("info", "========== SCANNEZ CE CODE QR DANS WHATSAPP ==========");
     qrcodeTerminal.generate(qr, { small: true });
     log("info", "WhatsApp > Appareils connectes > Connecter un appareil");
@@ -150,6 +176,8 @@ function creerClient() {
 
   c.on("ready", () => {
     etatConnexion = "ouvert";
+    qrEnAttente = false;
+    pretDepuis = Date.now();
     log("info", "Client whatsapp-web.js pret (session chargee).");
   });
 
@@ -159,6 +187,7 @@ function creerClient() {
 
   c.on("auth_failure", (msg) => {
     etatConnexion = "deconnecte";
+    qrEnAttente = false;
     log("error", `Echec d'authentification : ${msg}`);
   });
 
@@ -196,16 +225,21 @@ function creerClient() {
 
 async function demarrer() {
   const ancien = client;
+  client = null;
   if (ancien) {
-    client = null;
-    // Un client gelé (OOM Chrome) peut refuser de se détruire : on borne.
+    // Un client gelé (OOM Chrome) peut refuser de se détruire : on borne...
     try {
       await avecTimeout(ancien.destroy(), 6000, "destruction trop lente");
     } catch (e) {
       log("warn", "Ancien client non detruit proprement :", e?.message);
+      // ...puis on tue son Chromium. Sans cela, le navigateur fantôme verrouille
+      // le profil de session et le nouveau client ne démarre jamais.
+      tuerNavigateur(ancien);
     }
   }
   etatConnexion = "en_attente";
+  pretDepuis = 0;
+  qrEnAttente = false;
   deverrouillerProfil();
   client = creerClient();
   try {
@@ -213,21 +247,39 @@ async function demarrer() {
     // aussi cette étape. Les événements (ready/qr) reprendront la main.
     await avecTimeout(client.initialize(), 60000, "initialisation trop lente");
   } catch (e) {
-    log("warn", "Initialisation relancee par le gardien :", e?.message);
+    log("error", "Initialisation du client echouee :", e?.message);
+    tuerNavigateur(client);
   }
 }
 
-// Garde-fou anti-récursion : une seule relance de client à la fois (le watchdog
-// et l'événement "disconnected" peuvent la vouloir presque simultanément).
+// Garde-fou anti-récursion : une seule relance de client à la fois (le watchdog,
+// la supervision et l'échec d'un envoi peuvent la vouloir presque simultanément).
 let relanceEnCours = null;
-function relancerClient() {
+function relancerClient(raison, immediat = false) {
   if (relanceEnCours) return relanceEnCours;
+  if (!immediat && Date.now() - dernierRelance < DELAI_RECONNEXION_MS) return null;
+  dernierRelance = Date.now();
+  log("warn", `Relance du client WhatsApp : ${raison}`);
   relanceEnCours = demarrer()
     .catch((e) => log("error", "Echec reinitialisation :", e?.message ?? e))
     .finally(() => {
       relanceEnCours = null;
     });
   return relanceEnCours;
+}
+
+/**
+ * Attend que le client soit prêt, borné par ATTENTE_PRET_MS.
+ * Évite de perdre un OTP parce que le relais était en cours de reconnexion.
+ */
+async function attendrePret() {
+  if (client && etatConnexion === "ouvert") return;
+  const fin = Date.now() + ATTENTE_PRET_MS;
+  while (Date.now() < fin) {
+    if (client && etatConnexion === "ouvert") return;
+    await new Promise((r) => setTimeout(r, 500));
+  }
+  throw new Error("relais non connecte (session WhatsApp indisponible)");
 }
 
 // ---------------------------------------------------------------------------
@@ -243,23 +295,37 @@ async function respecterDelaiVers(numero) {
   dernierEnvoiParNumero.set(numero, Date.now());
 }
 
-async function envoyerMessage(numero, message) {
-  if (!client || etatConnexion !== "ouvert") {
-    throw new Error("relais non connecte (QR a scanner ?)");
+/** Un envoi, avec une seule réessai après reconnexion du client. */
+async function envoyerUneFois(jid, message) {
+  try {
+    return await avecTimeout(
+      client.sendMessage(jid, message),
+      TIMEOUT_OPERATION_MS,
+      "sendMessage bloquee (navigateur gelee ?)",
+    );
+  } catch (e) {
+    // Un Chromium figé survit au premier échec : on recrée le client et on
+    // retente une fois. Sans ce réessai, l'OTP du patient est définitivement
+    // perdu alors que la session WhatsApp, elle, est par ailleurs valide.
+    log("warn", `Envoi interrompu (${e?.message}) : reconnexion puis nouvelle tentative`);
+    await relancerClient("envoi interrompu", true);
+    await attendrePret();
+    return avecTimeout(
+      client.sendMessage(jid, message),
+      TIMEOUT_OPERATION_MS,
+      "sendMessage bloquee (2e tentative)",
+    );
   }
+}
+
+async function envoyerMessage(numero, message) {
+  await attendrePret();
   await respecterDelaiVers(numero);
 
   // Résolution LID : envoie vers le JID canonique (`.lid` ou `.c.us`) plutôt
   // que l'ancien format figé `@c.us` qui reste bloqué pour les comptes LID.
   const jid = await resoudreJid(numero);
-  // Envoi sous délai : si le Chrome est gelé (Runtime.callFunctionOn timed out),
-  // sendMessage ne doit pas bloquer le relais indéfiniment. Le timeout remonte
-  // une erreur franche au backend.
-  const msg = await avecTimeout(
-    client.sendMessage(jid, message),
-    TIMEOUT_OPERATION_MS,
-    "sendMessage bloquee (navigateur gelee ?)",
-  );
+  const msg = await envoyerUneFois(jid, message);
 
   // L'id de whatsapp-web.js est composé : msg.id.id (partie unique base64)
   // et msg.id._serialized (id@server). Le handler message_ack reçoit msg.id.id ;
@@ -280,7 +346,7 @@ async function envoyerMessage(numero, message) {
     message,
     statut: "envoye",
     horodatage_statut: null,
-    essais: 0,
+    avertie: false,
     horodatage_envoi: Date.now(),
   });
 
@@ -292,18 +358,24 @@ async function envoyerMessage(numero, message) {
 // ---------------------------------------------------------------------------
 
 const DELAI_ATTENTE_MS = Number(process.env.DELAI_ATTENTE_MS || 25000);
-const RETRY_MAX = Number(process.env.RETRY_MAX || 0);
 
 function lancerSurveillance() {
   // Accusés de réception en retard ; simple journalisation (la remise dépend
-  // de la connexion du téléphone destinataire, pas du relais).
+  // de la connexion du téléphone destinataire, pas du relais). Un avertissement
+  // par message seulement : la boucle répétait le même avertissement toutes
+  // les 15 s et noyait les logs (plus de 15 000 lignes en 22 h).
   setInterval(() => {
-    const seuil = Date.now() - DELAI_ATTENTE_MS;
-    for (const suivi of messagesSuivis.values()) {
-      const bloque =
-        (suivi.statut === "envoye" || suivi.statut === "en_attente") &&
-        (suivi.horodatage_envoi ?? 0) < seuil;
-      if (!bloque) continue;
+    const maintenant = Date.now();
+    const seuil = maintenant - DELAI_ATTENTE_MS;
+    for (const [id, suivi] of messagesSuivis) {
+      if (maintenant - (suivi.horodatage_envoi ?? maintenant) > DUREE_SUIVI_MS) {
+        messagesSuivis.delete(id);
+        continue;
+      }
+      const sansAccuse =
+        (suivi.statut === "envoye" || suivi.statut === "en_attente") && !suivi.avertie;
+      if (!sansAccuse || (suivi.horodatage_envoi ?? 0) >= seuil) continue;
+      suivi.avertie = true;
       log("warn", `Aucun accuse apres ${DELAI_ATTENTE_MS}ms pour ${suivi.to} id=${suivi.id}`);
     }
   }, 15000).unref();
@@ -316,9 +388,31 @@ function lancerSurveillance() {
     const cap = await capaciteReelle();
     if (cap === "bloque") {
       log("warn", "Relais bloque (navigateur gelee) : reinitialisation du client…");
-      await relancerClient();
+      await relancerClient("navigateur gele", true);
     }
   }, DELAI_LIVRAISON_MS).unref();
+
+  // Filet de sécurité : un client qui n'a JAMAIS atteint l'état « prêt »
+  // (initialize() échoué, session invalide) n'est plus récupéré par le
+  // watchdog ci-dessus, qui suppose un client déjà fonctionnel. Sans cette
+  // boucle, le relais restait muet indéfiniment après un échec de démarrage.
+  // On sonde toujours avant de recréer : un client qui charge sa session peut
+  // être sain alors que son événement « ready » n'est pas encore arrivé.
+  setInterval(async () => {
+    if (relanceEnCours) return;
+    if (pretDepuis) return; // le client a déjà fonctionné : watchdog gelé
+    if (!client) {
+      relancerClient("client absent");
+      return;
+    }
+    if (qrEnAttente) return; // QR affiché : le recréer l'annulerait
+    const cap = await capaciteReelle();
+    if (cap === "ouvert") {
+      pretDepuis = Date.now(); // session chargée, « ready » pas encore émis
+      return;
+    }
+    relancerClient("session jamais etablie");
+  }, DELAI_RECONNEXION_MS).unref();
 }
 
 // ---------------------------------------------------------------------------
@@ -343,6 +437,14 @@ const lireCorps = (requete) =>
 
 const serveur = http.createServer(async (requete, reponse) => {
   const url = new URL(requete.url, `http://${requete.headers.host || "localhost"}`);
+
+  // Protection par secret partagé
+  if (SECRET_RELAY && requete.headers["x-relay-secret"] !== SECRET_RELAY) {
+    if (url.pathname !== "/sante") {
+      corps(reponse, 403, { erreur: "Secret invalide" });
+      return;
+    }
+  }
 
   if (requete.method === "GET" && url.pathname === "/sante") {
     // Sonde réelle : « session chargée » ne suffit plus — on vérifie que le
@@ -405,8 +507,15 @@ const serveur = http.createServer(async (requete, reponse) => {
       corps(reponse, 200, { ok: true, id });
     } catch (exc) {
       const erreur = exc instanceof Error ? exc.message : String(exc);
-      log("error", `Envoi echoue : ${erreur}`);
-      corps(reponse, 500, { ok: false, erreur });
+      // Session WhatsApp absente : 503 explicite, le moteur saura que le
+      // canal est momentanément hors service plutôt que l'envoi cassé.
+      const indisponible = erreur.includes("non connecte");
+      log(indisponible ? "warn" : "error", `Envoi echoue : ${erreur}`);
+      corps(reponse, indisponible ? 503 : 500, {
+        ok: false,
+        erreur,
+        connexion: etatConnexion,
+      });
     }
     return;
   }

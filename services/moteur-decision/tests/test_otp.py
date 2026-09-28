@@ -65,7 +65,7 @@ def test_acces_resultat_avec_otp_valide_retourne_patient_et_resultats(
             }
         ]
 
-    monkeypatch.setattr(persistance, "verifier_et_consommer_otp", _verifier)
+    monkeypatch.setattr(persistance, "verifier_otp", _verifier)
     monkeypatch.setattr(persistance, "obtenir_resultats_par_patient", _resultats)
 
     reponse = client.post(
@@ -80,12 +80,12 @@ def test_acces_resultat_avec_otp_valide_retourne_patient_et_resultats(
 def test_acces_resultat_otp_invalide_refuse(
     client: TestClient, monkeypatch: pytest.MonkeyPatch
 ):
-    """OTP invalide, expire ou epuise -> 401 sans detail d'emoi."""
+    """OTP inconnu ou epuise -> 401 sans detail d'emoi."""
 
     async def _verifier(code: str, destination: str):
         return None
 
-    monkeypatch.setattr(persistance, "verifier_et_consommer_otp", _verifier)
+    monkeypatch.setattr(persistance, "verifier_otp", _verifier)
 
     reponse = client.post(
         "/acces-resultat", json={"code_otp": "000000", "email": "patient@example.org"}
@@ -104,7 +104,7 @@ def test_acces_resultat_est_public_sans_token(
     async def _verifier(code: str, destination: str):
         return None
 
-    monkeypatch.setattr(persistance, "verifier_et_consommer_otp", _verifier)
+    monkeypatch.setattr(persistance, "verifier_otp", _verifier)
 
     reponse = client.post(
         "/acces-resultat", json={"code_otp": "999999", "email": "x@example.org"}

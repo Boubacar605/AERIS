@@ -15,6 +15,7 @@ from app.routes.routage import routeur_routage
 from app.routes.sante import routeur_sante
 from app.routes.auth import routeur_auth
 from app.routes.admin import routeur_admin
+from app.routes.clinique import routeur_clinique
 from app.routes.acces import routeur_acces
 
 _logger = logging.getLogger("aeris.moteur")
@@ -92,6 +93,7 @@ app.include_router(routeur_routage, prefix="/routage", tags=["Routage"])
 app.include_router(routeur_metriques, tags=["Metriques"])
 app.include_router(routeur_auth)
 app.include_router(routeur_admin)
+app.include_router(routeur_clinique)
 app.include_router(routeur_acces)
 
 

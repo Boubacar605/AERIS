@@ -192,6 +192,7 @@ async def decider_destination(
     force_destination: str | None = None,
     contexte: str | None = None,
     nom_fichier: str | None = None,
+    second_avis: bool | None = None,
 ) -> ReponseRoutage:
     """Decide ou envoyer l'image, execute l'inference, puis applique le
     filet de securite de confiance.
@@ -202,10 +203,20 @@ async def decider_destination(
     optionnel surclasse la regle automatique.
 
     Si force_destination est "edge" ou "cloud", le routage automatique est
-    ignore, mais le controle qualite reste actif : une confiance ambigue
-    declenche toujours un second avis sur l'autre source.
+    ignore **et l'inference reste sur cette source** : c'est la promesse de
+    l'API (« l'inference est forcee vers la destination choisie »), et c'est
+    aussi ce qui rend le scenario « Tout-Edge » mesurable — un envoi vers le
+    Cloud faussait completement les confidences (70 % de 1.0 sur l'Edge).
+
+    ``second_avis`` permet de/reactiver explicitement le controle qualite
+    croise meme en destination forcee. La prudence clinique est alors
+    preservee autrement : un verdict trop ambigu est marque ``indetermine``
+    plutot que d'etre remplace par celui de l'autre source.
     """
     debut = time.time()
+
+    if second_avis is None:
+        second_avis = force_destination not in ("edge", "cloud")
 
     metriques_edge, reseau_ok = await asyncio.gather(
         obtenir_metriques_completes(),
@@ -226,6 +237,8 @@ async def decider_destination(
     if force_destination in ("edge", "cloud"):
         destination = force_destination
         raison = f"Destination forcee manuellement vers {destination}"
+        if not second_avis:
+            raison += " (second avis desactive : verdict issu de cette seule source)"
     else:
         destination, raison = _appliquer_regles(metriques)
 
@@ -233,6 +246,7 @@ async def decider_destination(
         destination=destination,
         raison=raison,
         metriques=metriques,
+        second_avis=second_avis,
     )
 
     logger.info("Decision : %s - %s", destination, raison)
@@ -276,9 +290,29 @@ async def decider_destination(
         temps_escalade_ms = 0.0
         source_controle = "cloud" if destination == "edge" else "edge"
 
-        controles_requis = [
-            r for r in primaires if _entraine_escalade(r.confiance, config.seuil_confiance_escalade)
-        ]
+        if not second_avis:
+            # Destination forcee sans second avis : aucune requete vers
+            # l'autre source. La prudence est assuree en marquant les
+            # verdicts trop ambigus, plutot qu'en les remplacant.
+            for r in primaires:
+                if _entraine_escalade(r.confiance, config.seuil_confiance_escalade):
+                    r.indetermine = r.confiance < config.seuil_confiance_indetermine
+            logger.info(
+                "Second avis desactive (destination forcee) — %d verdict(s) marque(s) "
+                "indetermine(s) sur %d",
+                sum(1 for r in primaires if r.indetermine),
+                len(primaires),
+            )
+
+        controles_requis = (
+            []
+            if not second_avis
+            else [
+                r
+                for r in primaires
+                if _entraine_escalade(r.confiance, config.seuil_confiance_escalade)
+            ]
+        )
 
         if controles_requis:
             if source_controle == "cloud" and not reseau_ok:

@@ -17,8 +17,13 @@ import { Route as DiagnosticRouteImport } from './routes/diagnostic'
 import { Route as HistoriqueRouteImport } from './routes/historique'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as MonitoringRouteImport } from './routes/monitoring'
+import { Route as PatientsRouteImport } from './routes/patients'
+import { Route as PosteRouteImport } from './routes/poste'
+import { Route as ProtocoleRouteImport } from './routes/protocole'
 import { Route as ResultatRouteImport } from './routes/resultat'
 import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as SuiviRouteImport } from './routes/suivi'
+import { Route as TriageRouteImport } from './routes/triage'
 import { Route as AdminPatientsRouteImport } from './routes/admin/patients'
 import { Route as AdminUtilisateursRouteImport } from './routes/admin/utilisateurs'
 
@@ -62,6 +67,21 @@ const MonitoringRoute = MonitoringRouteImport.update({
   path: '/monitoring',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PatientsRoute = PatientsRouteImport.update({
+  id: '/patients',
+  path: '/patients',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PosteRoute = PosteRouteImport.update({
+  id: '/poste',
+  path: '/poste',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProtocoleRoute = ProtocoleRouteImport.update({
+  id: '/protocole',
+  path: '/protocole',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ResultatRoute = ResultatRouteImport.update({
   id: '/resultat',
   path: '/resultat',
@@ -70,6 +90,16 @@ const ResultatRoute = ResultatRouteImport.update({
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SuiviRoute = SuiviRouteImport.update({
+  id: '/suivi',
+  path: '/suivi',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TriageRoute = TriageRouteImport.update({
+  id: '/triage',
+  path: '/triage',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AdminPatientsRoute = AdminPatientsRouteImport.update({
@@ -92,8 +122,13 @@ export interface FileRoutesByFullPath {
   '/historique': typeof HistoriqueRoute
   '/login': typeof LoginRoute
   '/monitoring': typeof MonitoringRoute
+  '/patients': typeof PatientsRoute
+  '/poste': typeof PosteRoute
+  '/protocole': typeof ProtocoleRoute
   '/resultat': typeof ResultatRoute
   '/settings': typeof SettingsRoute
+  '/suivi': typeof SuiviRoute
+  '/triage': typeof TriageRoute
   '/admin/patients': typeof AdminPatientsRoute
   '/admin/utilisateurs': typeof AdminUtilisateursRoute
 }
@@ -106,8 +141,13 @@ export interface FileRoutesByTo {
   '/historique': typeof HistoriqueRoute
   '/login': typeof LoginRoute
   '/monitoring': typeof MonitoringRoute
+  '/patients': typeof PatientsRoute
+  '/poste': typeof PosteRoute
+  '/protocole': typeof ProtocoleRoute
   '/resultat': typeof ResultatRoute
   '/settings': typeof SettingsRoute
+  '/suivi': typeof SuiviRoute
+  '/triage': typeof TriageRoute
   '/admin/patients': typeof AdminPatientsRoute
   '/admin/utilisateurs': typeof AdminUtilisateursRoute
 }
@@ -121,8 +161,13 @@ export interface FileRoutesById {
   '/historique': typeof HistoriqueRoute
   '/login': typeof LoginRoute
   '/monitoring': typeof MonitoringRoute
+  '/patients': typeof PatientsRoute
+  '/poste': typeof PosteRoute
+  '/protocole': typeof ProtocoleRoute
   '/resultat': typeof ResultatRoute
   '/settings': typeof SettingsRoute
+  '/suivi': typeof SuiviRoute
+  '/triage': typeof TriageRoute
   '/admin/patients': typeof AdminPatientsRoute
   '/admin/utilisateurs': typeof AdminUtilisateursRoute
 }
@@ -137,8 +182,13 @@ export interface FileRouteTypes {
     | '/historique'
     | '/login'
     | '/monitoring'
+    | '/patients'
+    | '/poste'
+    | '/protocole'
     | '/resultat'
     | '/settings'
+    | '/suivi'
+    | '/triage'
     | '/admin/patients'
     | '/admin/utilisateurs'
   fileRoutesByTo: FileRoutesByTo
@@ -151,8 +201,13 @@ export interface FileRouteTypes {
     | '/historique'
     | '/login'
     | '/monitoring'
+    | '/patients'
+    | '/poste'
+    | '/protocole'
     | '/resultat'
     | '/settings'
+    | '/suivi'
+    | '/triage'
     | '/admin/patients'
     | '/admin/utilisateurs'
   id:
@@ -165,8 +220,13 @@ export interface FileRouteTypes {
     | '/historique'
     | '/login'
     | '/monitoring'
+    | '/patients'
+    | '/poste'
+    | '/protocole'
     | '/resultat'
     | '/settings'
+    | '/suivi'
+    | '/triage'
     | '/admin/patients'
     | '/admin/utilisateurs'
   fileRoutesById: FileRoutesById
@@ -180,8 +240,13 @@ export interface RootRouteChildren {
   HistoriqueRoute: typeof HistoriqueRoute
   LoginRoute: typeof LoginRoute
   MonitoringRoute: typeof MonitoringRoute
+  PatientsRoute: typeof PatientsRoute
+  PosteRoute: typeof PosteRoute
+  ProtocoleRoute: typeof ProtocoleRoute
   ResultatRoute: typeof ResultatRoute
   SettingsRoute: typeof SettingsRoute
+  SuiviRoute: typeof SuiviRoute
+  TriageRoute: typeof TriageRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -242,6 +307,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MonitoringRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/patients': {
+      id: '/patients'
+      path: '/patients'
+      fullPath: '/patients'
+      preLoaderRoute: typeof PatientsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/poste': {
+      id: '/poste'
+      path: '/poste'
+      fullPath: '/poste'
+      preLoaderRoute: typeof PosteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/protocole': {
+      id: '/protocole'
+      path: '/protocole'
+      fullPath: '/protocole'
+      preLoaderRoute: typeof ProtocoleRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/resultat': {
       id: '/resultat'
       path: '/resultat'
@@ -254,6 +340,20 @@ declare module '@tanstack/react-router' {
       path: '/settings'
       fullPath: '/settings'
       preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/suivi': {
+      id: '/suivi'
+      path: '/suivi'
+      fullPath: '/suivi'
+      preLoaderRoute: typeof SuiviRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/triage': {
+      id: '/triage'
+      path: '/triage'
+      fullPath: '/triage'
+      preLoaderRoute: typeof TriageRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin/patients': {
@@ -294,8 +394,13 @@ const rootRouteChildren: RootRouteChildren = {
   HistoriqueRoute: HistoriqueRoute,
   LoginRoute: LoginRoute,
   MonitoringRoute: MonitoringRoute,
+  PatientsRoute: PatientsRoute,
+  PosteRoute: PosteRoute,
+  ProtocoleRoute: ProtocoleRoute,
   ResultatRoute: ResultatRoute,
   SettingsRoute: SettingsRoute,
+  SuiviRoute: SuiviRoute,
+  TriageRoute: TriageRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
