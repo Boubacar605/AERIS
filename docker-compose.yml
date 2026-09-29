@@ -145,6 +145,11 @@ services:
       - WHATSAPP_RELAY_SECRET=${WHATSAPP_RELAY_SECRET:-aeris-dev-secret-whatsapp}
       - WHATSAPP_PREFIXE_PAYS=${WHATSAPP_PREFIXE_PAYS:-221}
       - URL_TABLEAU_DE_BORD=${TABLEAU_DE_BORD_PUBLIQUE:-http://localhost:${TABLEAU_DE_BORD_PORT:-3000}}
+      # --- Securite HTTP (CORS, anti-bourrage, exposition /metrics) ---
+      - CORS_ORIGINES_AUTORISEES=${CORS_ORIGINES_AUTORISEES:-}
+      - LIMITE_CONNEXION_PAR_MINUTE=${LIMITE_CONNEXION_PAR_MINUTE:-10}
+      - LIMITE_ACCES_RESULTAT_PAR_MINUTE=${LIMITE_ACCES_RESULTAT_PAR_MINUTE:-20}
+      - METRICS_PUBLIC=${METRICS_PUBLIC:-false}
     depends_on:
       service-tuberculose-cloud:
         condition: service_started

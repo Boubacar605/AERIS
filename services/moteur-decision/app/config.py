@@ -1,6 +1,16 @@
 """Configuration du moteur de decision via variables d'environnement."""
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings
+
+# Origines CORS par defaut : dev (Vite 8080 / SSR 3000) et tunnel public.
+# Exposee comme constante pour qu'une variable d'environnement vide y retombe
+# au lieu de desactiver silencieusement CORS.
+CORS_ORIGINES_DEFAUT = (
+    "http://localhost:8080,http://localhost:3000,"
+    "http://127.0.0.1:8080,http://127.0.0.1:3000,"
+    "https://aeris.tail1b07b8.ts.net"
+)
 
 
 class ConfigMoteurDecision(BaseSettings):
@@ -33,6 +43,33 @@ class ConfigMoteurDecision(BaseSettings):
 
     # Monitoring
     prometheus_url: str = "http://prometheus:9090"
+
+    # --- Securite HTTP ---
+    # Origines autorisees pour CORS, separees par des virgules. Restreint par
+    # defaut au dev et au tunnel public : le front appelle le moteur en URL
+    # absolue (VITE_URL_API), et sous Tailscale Funnel front et API partagent
+    # le meme hote (/ et /api), donc le navigateur envoie une requete
+    # same-origin qui ignore la liste. Un deploiement sur un hote distinct
+    # ajoute son origine ici. Aucune valeur ne valide "*".
+    cors_origines_autorisees: str = CORS_ORIGINES_DEFAUT
+
+    @field_validator("cors_origines_autorisees")
+    @classmethod
+    def _retomber_sur_defauts(cls, valeur: str) -> str:
+        """Une valeur vide ou le joker "*" retombe sur la liste par defaut."""
+        nettoyee = (valeur or "").strip()
+        if not nettoyee or nettoyee == "*":
+            return CORS_ORIGINES_DEFAUT
+        return nettoyee
+    # Plafonds par minute des surfaces d'authentification (anti-bourrage).
+    # 0 desactive le limiteur sur la route concernee. /routage/analyser n'est
+    # jamais bornee : les scenarios d'experimentation la saturent a dessein.
+    limite_connexion_par_minute: int = 10
+    limite_acces_resultat_par_minute: int = 20
+    # Exposition de /metrics. Prometheus scrape en reseau Docker sans Origin,
+    # donc la protection par liste n'a pas de sens ; False (defaut) restreint
+    # la lecture aux appels sans Origin (Prometheus) et refuse un navigateur.
+    metrics_public: bool = False
 
     # Persistance PostgreSQL. Vide = persistance désactivée (le registre en
     # mémoire reste seul maître) : permet de tourner en dev/tests sans base.

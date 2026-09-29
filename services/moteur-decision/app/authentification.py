@@ -84,6 +84,14 @@ async def exiger_authentification(
     except jwt.InvalidTokenError:
         raise HTTPException(status_code=401, detail="Token invalide")
 
+    # Un token de rafraichissement (7 jours) ne doit jamais servir de Bearer :
+    # il ouvrirait les routes protegees bien plus longtemps qu'un acces (30 min).
+    # Le claim ``type`` est emis par /auth/connexion ; son absence reste toleree
+    # pour les jetons anterieurs (compatibilite ascendante).
+    type_token = donnees.get("type")
+    if type_token is not None and type_token != "acces":
+        raise HTTPException(status_code=401, detail="Type de token invalide")
+
     id_utilisateur = donnees.get("sub")
     if not id_utilisateur:
         raise HTTPException(status_code=401, detail="Token sans sujet (sub)")

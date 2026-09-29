@@ -141,3 +141,32 @@ def test_refresh_token_echange_vs_access(
     reponse2 = client.post("/auth/rafraichir", json={"rafraichissement_token": acces})
     assert reponse2.status_code == 401
     assert "refresh" in reponse2.json()["detail"]
+
+
+def test_rafraichissement_token_refuse_comme_bearer(client: TestClient):
+    """Un refresh token (7 jours) ne doit pas ouvrir une route protegee.
+
+    Sans ce controle, un token longue duree volé servait de Bearer partout,
+    rendant inutile la duree courte (30 min) de l'access token.
+    """
+    from app.authentification import creer_jwt
+
+    refresh = creer_jwt(
+        {"sub": "1", "role": "admin", "type": "rafraichissement"},
+        ttl_minutes=7 * 24 * 60,
+    )
+    reponse = client.get(
+        "/auth/moi", headers={"Authorization": f"Bearer {refresh}"}
+    )
+    assert reponse.status_code == 401
+    assert "Type de token invalide" in reponse.json()["detail"]
+
+
+def test_token_sans_type_reste_accepte(client: TestClient):
+    """Compatibilite ascendante : un JWT anterieur sans claim ``type`` passe."""
+    from app.authentification import creer_jwt
+
+    ancien = creer_jwt({"sub": "1", "role": "admin"})
+    reponse = client.get("/auth/moi", headers={"Authorization": f"Bearer {ancien}"})
+    assert reponse.status_code == 200
+    assert reponse.json()["role"] == "admin"
