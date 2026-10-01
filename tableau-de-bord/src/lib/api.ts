@@ -943,7 +943,12 @@ export type PartageCompteRendu = {
  * plutôt que masquée.
  */
 export async function partagerCompteRendu(idExamen: number): Promise<PartageCompteRendu> {
-  return fetchAPI<PartageCompteRendu>(`/examens/${idExamen}/partager`, { method: "POST" });
+  return fetchAPI<PartageCompteRendu>(
+    `/examens/${idExamen}/partager`,
+    { method: "POST" },
+    false,
+    TIMEOUT_MUTATION_MS,
+  );
 }
 
 /**

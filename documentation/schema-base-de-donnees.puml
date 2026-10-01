@@ -1,0 +1,309 @@
+@startuml
+
+title AERIS - Schema PostgreSQL (13 tables, 5 vues)
+
+skinparam shadowing false
+skinparam dpi 150
+
+legend right
+  Domaines (types enumeres)
+  -- t_pathologie : tuberculose, pneumonie
+  -- t_destination : edge, cloud
+  -- t_statut_verdict : positif, negatif
+  -- t_statut_analyse : completed, failed
+  -- t_contexte_depistage : auto, tuberculose, pneumonie, general
+  -- t_decision_escalade : arbitrage_a_prevalu, arbitrage_conserve_initial, escalade_impossible
+  -- t_statut_suivi : planifie, realise, annule
+  -- t_statut_validation : en_attente, approuve, desapprouve
+  -- t_role : admin, clinicien
+endlegend
+
+package "Entites cliniques" {
+  entity patients {
+    * id_patient : BIGINT <<PK>>
+    --
+    * code_patient : TEXT <<UNIQUE>>
+    sexe : CHAR(1) CHECK (F, M, X)
+    annee_naissance : SMALLINT
+    note : TEXT
+    * cree_le : TIMESTAMPTZ
+    * modifie_le : TIMESTAMPTZ
+  }
+
+  entity examens_image {
+    * id_examen : BIGINT <<PK>>
+    --
+    * id_patient : BIGINT <<FK>>
+    * code_examen : TEXT <<UNIQUE>>
+    * nom_fichier : TEXT
+    format_fichier : TEXT
+    * taille_octets : BIGINT
+    * hash_contenu : TEXT <<UNIQUE>>
+    chemin_stockage : TEXT
+    * importer_le : TIMESTAMPTZ
+    * modifie_le : TIMESTAMPTZ
+  }
+
+  entity "profils_images_analysees" as profils {
+    * id_profil : BIGINT <<PK>>
+    --
+    * id_diagnostic : BIGINT <<FK>> <<UNIQUE>>
+    format_image : TEXT
+    largeur_px : INTEGER
+    hauteur_px : INTEGER
+    ratio_largeur_hauteur : NUMERIC(6,3)
+    mode_canaux : TEXT
+    taille_octets : BIGINT
+    * indecodable : BOOLEAN
+    * specialistes_admissibles : TEXT[]
+    cle_regle : TEXT
+    regle_appliquee : TEXT
+    specialiste_ecarte : t_pathologie
+    raison : TEXT
+  }
+}
+
+package "Referentiels" {
+  entity "modeles_ia" as modeles {
+    * id_modele : BIGINT <<PK>>
+    --
+    * identifiant_code : TEXT <<UNIQUE>>
+    * pathologie : t_pathologie
+    * environnement : t_destination
+    * version_modele : TEXT
+    libelle : TEXT
+    * actif : BOOLEAN
+    * cree_le : TIMESTAMPTZ
+    UNIQUE (pathologie, environnement, version_modele)
+  }
+
+  entity "versions_configuration" as versions {
+    * id_version : BIGINT <<PK>>
+    --
+    libelle : TEXT
+    * seuil_cpu : NUMERIC(5,2)
+    * seuil_ram : NUMERIC(5,2)
+    * seuil_latence_ms : NUMERIC(8,2)
+    confiance_escalade : NUMERIC(4,3)
+    confiance_indetermine : NUMERIC(4,3)
+    * profilage_active : BOOLEAN
+    seuil_ratio_carre_inf : NUMERIC(5,3)
+    seuil_ratio_carre_sup : NUMERIC(5,3)
+    seuil_ratio_pn : NUMERIC(5,3)
+    format_image_tb : TEXT
+    format_image_pn : TEXT
+    * active_a_partir : TIMESTAMPTZ
+    active_jusqu_a : TIMESTAMPTZ
+    * cree_le : TIMESTAMPTZ
+  }
+}
+
+package "Cœur - pipeline de routage" {
+  entity diagnostics {
+    * id_diagnostic : BIGINT <<PK>>
+    --
+    * id_examen : BIGINT <<FK>>
+    id_version_configuration : BIGINT <<FK>>
+    * contexte_depistage : t_contexte_depistage
+    * destination_choisie : t_destination
+    * raison_decision : TEXT
+    cpu_pourcentage : NUMERIC(5,2)
+    ram_pourcentage : NUMERIC(5,2)
+    latence_reseau_ms : NUMERIC(8,2)
+    reseau_disponible : BOOLEAN
+    * temps_total_ms : NUMERIC(10,2)
+    temps_escalade_ms : NUMERIC(10,2)
+    * statut : t_statut_analyse
+    * execute_le : TIMESTAMPTZ
+  }
+
+  entity "resultats_pathologiques" as resultats {
+    * id_resultat : BIGINT <<PK>>
+    --
+    * id_diagnostic : BIGINT <<FK>>
+    id_modele : BIGINT <<FK>>
+    * pathologie : t_pathologie
+    * prediction : t_statut_verdict
+    * confiance_finale : NUMERIC(4,3)
+    confiance_initiale : NUMERIC(4,3)
+    * source_finale : t_destination
+    source_initiale : t_destination
+    * determinant : BOOLEAN
+    * temps_inference_ms : NUMERIC(10,2)
+    * rang : SMALLINT
+    UNIQUE (id_diagnostic, pathologie)
+  }
+
+  entity "escalades_controle" as escalades {
+    * id_escalade : BIGINT <<PK>>
+    --
+    * id_diagnostic : BIGINT <<FK>>
+    id_resultat : BIGINT <<FK>>
+    * pathologie : t_pathologie
+    * source_initiale : t_destination
+    * confiance_initiale : NUMERIC(4,3)
+    * source_controle : t_destination
+    * confiance_controle : NUMERIC(4,3)
+    * decision : t_decision_escalade
+    raison : TEXT
+    * execute_le : TIMESTAMPTZ
+  }
+}
+
+package "Observabilite" {
+  entity "telemetrie_observations" as telemetrie {
+    * id_observation : BIGINT <<PK>>
+    --
+    * horodatage : TIMESTAMPTZ
+    * departement : TEXT
+    conteneur : TEXT
+    * nom_mesure : TEXT
+    * valeur : NUMERIC(12,4)
+    unite : TEXT
+  }
+}
+
+package "Acces, OTP et suivi clinique" {
+  entity utilisateurs {
+    * id_utilisateur : BIGINT <<PK>>
+    --
+    * email : VARCHAR <<UNIQUE>>
+    * nom : VARCHAR
+    * prenom : VARCHAR
+    * role : t_role
+    * mot_de_passe_hash : VARCHAR
+    * actif : BOOLEAN
+    * cree_le : TIMESTAMPTZ
+    modifie_le : TIMESTAMPTZ
+  }
+
+  entity "otp_codes" as otp {
+    * id_otp : BIGINT <<PK>>
+    --
+    * id_patient : BIGINT <<FK>>
+    id_examen : BIGINT <<FK>>
+    * email_destination : TEXT
+    * code_hash : VARCHAR <<UNIQUE>>
+    * expire_le : TIMESTAMPTZ
+    * tentatives : INTEGER
+    utilise_le : TIMESTAMPTZ
+    revoque_le : TIMESTAMPTZ
+    * cree_le : TIMESTAMPTZ
+  }
+
+  entity "suivis_cliniques" as suivis {
+    * id_suivi : BIGINT <<PK>>
+    --
+    * id_patient : BIGINT <<FK>>
+    id_examen_origine : BIGINT <<FK>>
+    * date_suivi : DATE
+    motif : TEXT
+    * statut : t_statut_suivi
+    * cree_le : TIMESTAMPTZ
+  }
+
+  entity "validations_cliniques" as validations {
+    * id_validation : BIGINT <<PK>>
+    --
+    * id_examen : BIGINT <<FK>>
+    id_utilisateur : BIGINT <<FK>>
+    id_otp : BIGINT <<FK>>
+    * statut : t_statut_validation
+    note_clinique : TEXT
+    motif_desaccord : TEXT
+    * cree_le : TIMESTAMPTZ
+  }
+}
+
+package "Vues d'agregation" {
+  entity "v_statistiques_globales" as v_glob <<view>> {
+    total
+    taux_reussite_pourcent
+    latence_moyenne_edge_ms
+    latence_moyenne_cloud_ms
+    total_edge
+    total_cloud
+  }
+
+  entity "v_derniers_diagnostics" as v_derniers <<view>> {
+    id_diagnostic
+    execute_le
+    destination_choisie
+    statut
+    temps_total_ms
+    contexte_depistage
+    nom_fichier
+    format_fichier
+    code_patient
+    verdicts
+  }
+
+  entity "v_performance_modeles" as v_perf <<view>> {
+    identifiant_code
+    pathologie
+    environnement
+    version_modele
+    nb_inferences
+    latence_moyenne_ms
+    confiance_moyenne
+    nb_positifs
+  }
+
+  entity "v_etat_validation" as v_etat <<view>> {
+    id_examen
+    id_validation
+    statut
+    note_clinique
+    motif_desaccord
+    cree_le
+    decide_par
+  }
+
+  entity "v_protocole_validation" as v_proto <<view>> {
+    examens_analyses
+    examens_approuves
+    examens_desapprouves
+    examens_en_attente
+    examens_non_approuves
+    decisions_journalisees
+    otp_revoques
+    controles_a_venir
+    delai_moyen_heures
+  }
+}
+
+' ==== Relations (cardinalites textuelles) ====
+patients "1" -- "0..*" examens_image : "ON DELETE RESTRICT"
+examens_image "1" -- "0..*" diagnostics : "ON DELETE RESTRICT"
+diagnostics "1" -- "1" profils : "1:1 - ON DELETE CASCADE"
+diagnostics "1" -- "0..*" resultats : "ON DELETE CASCADE"
+diagnostics "1" -- "0..*" escalades : "ON DELETE CASCADE"
+escalades "0..1" -- "0..*" resultats : "ON DELETE SET NULL"
+modeles "1" -- "0..*" resultats : "ON DELETE SET NULL"
+versions "1" -- "0..*" diagnostics : "ON DELETE RESTRICT"
+
+patients "1" -- "0..*" otp : "ON DELETE CASCADE"
+examens_image "1" -- "0..*" otp : "ON DELETE RESTRICT"
+patients "1" -- "0..*" suivis : "ON DELETE RESTRICT"
+examens_image "1" -- "0..*" suivis : "ON DELETE RESTRICT"
+
+examens_image "1" -- "0..*" validations : "ON DELETE RESTRICT"
+utilisateurs "1" -- "0..*" validations : "ON DELETE SET NULL"
+otp "1" -- "0..*" validations : "ON DELETE SET NULL"
+' ==== Dependances des vues ====
+v_glob ..> diagnostics
+v_derniers ..> diagnostics
+v_derniers ..> examens_image
+v_derniers ..> patients
+v_derniers ..> resultats
+v_perf ..> modeles
+v_perf ..> resultats
+v_etat ..> validations
+v_etat ..> utilisateurs
+v_proto ..> v_etat
+v_proto ..> diagnostics
+v_proto ..> validations
+v_proto ..> otp
+v_proto ..> suivis
+
+@enduml

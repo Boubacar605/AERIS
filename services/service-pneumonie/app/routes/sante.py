@@ -1,6 +1,8 @@
 """Endpoints de verification de sante et metriques systeme du service."""
 
+import asyncio
 import time
+from pathlib import Path
 
 import psutil
 from fastapi import APIRouter
@@ -12,10 +14,23 @@ routeur_sante = APIRouter(tags=["Sante"])
 
 DEMARRAGE = time.time()
 
+CHEMIN_LATENCE_SIMULEE = Path("/tmp/latence-simulee-ms")
+
+
+def _lire_latence_simulee_ms() -> float:
+    """Retourne la latence simulee (ms) demandee pour les scenarios de charge."""
+    try:
+        return float(CHEMIN_LATENCE_SIMULEE.read_text().strip())
+    except (OSError, ValueError):
+        return 0.0
+
 
 @routeur_sante.get("/sante")
 async def verifier_sante() -> dict:
     """Verifie que le service est operationnel."""
+    latence_simulee_ms = _lire_latence_simulee_ms()
+    if latence_simulee_ms > 0:
+        await asyncio.sleep(latence_simulee_ms / 1000)
     return {
         "statut": "ok",
         "service": "service-pneumonie",

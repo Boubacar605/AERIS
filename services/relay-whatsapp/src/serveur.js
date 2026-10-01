@@ -199,18 +199,27 @@ function creerClient() {
 
   // Accusés de réception pour nos messages envoyés
   c.on("message_ack", (msg, ack) => {
-    const idBrut = typeof msg === "string" ? msg : msg?.id?.id || msg?.id?._serialized;
+    // L'id peut arriver sous trois formes : la partie unique (base64), le
+    // _serialized (id@serveur) ou une string brute ; quelle que soit la forme,
+    // on extrait d'abord la partie unique, celle qui sert de cle de stockage.
+    const idBrut =
+      (typeof msg === "string" ? msg : msg?.id?.id || msg?.id?._serialized) ?? "";
     if (!idBrut) return;
-    // Envoi vers soi-même : l'id peut être complet (_serialized) ou tronqué ;
-    // on tente le match exact puis un match sur la partie unique.
-    const id = messagesSuivis.get(idBrut)
-      ? idBrut
-      : (function () {
-          for (const cle of messagesSuivis.keys()) {
-            if (cle === idBrut || cle.endsWith(`:${idBrut}`) || idBrut.endsWith(`:${cle}`)) return cle;
-          }
-          return null;
-        })();
+    const idUnique = idBrut.split("@")[0] || idBrut;
+    let id = null;
+    if (messagesSuivis.has(idUnique)) {
+      id = idUnique;
+    } else {
+      // Envoi vers soi-même : l'id stocké peut être le _serialized complet ;
+      // on retombe alors sur la partie unique de chaque entrée.
+      for (const cle of messagesSuivis.keys()) {
+        const partieUnique = cle.split("@")[0] || cle;
+        if (partieUnique === idUnique) {
+          id = cle;
+          break;
+        }
+      }
+    }
     if (!id) return;
 
     const suivi = messagesSuivis.get(id);
