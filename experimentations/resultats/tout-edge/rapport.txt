@@ -9,53 +9,53 @@ Requetes totales : 200
   - Routees Cloud : 0
 
 --- LATENCE END-TO-END (ms) ---
-  Moyenne  : 126.41
-  Mediane  : 123.65
-  Ecart-type : 22.43
-  P95      : 149.32
-  P99      : 198.26
-  Min      : 97.95
-  Max      : 370.00
+  Moyenne  : 177.38
+  Mediane  : 173.73
+  Ecart-type : 24.93
+  P95      : 219.48
+  P99      : 253.62
+  Min      : 135.27
+  Max      : 335.18
   Echantillons : 200
 
 --- TEMPS D'INFERENCE TUBERCULOSE (ms) ---
-  Moyenne  : 62.27
-  Mediane  : 61.31
-  Ecart-type : 4.71
-  P95      : 69.14
-  P99      : 74.35
-  Min      : 53.58
-  Max      : 90.99
+  Moyenne  : 89.09
+  Mediane  : 85.53
+  Ecart-type : 10.70
+  P95      : 106.19
+  P99      : 131.17
+  Min      : 73.76
+  Max      : 137.01
   Echantillons : 100
 
 --- TEMPS D'INFERENCE PNEUMONIE (ms) ---
-  Moyenne  : 68.41
-  Mediane  : 64.43
-  Ecart-type : 26.84
-  P95      : 84.85
-  P99      : 101.72
-  Min      : 52.40
-  Max      : 314.51
+  Moyenne  : 96.93
+  Mediane  : 94.61
+  Ecart-type : 15.84
+  P95      : 118.01
+  P99      : 151.60
+  Min      : 71.95
+  Max      : 151.79
   Echantillons : 100
 
 --- CPU EDGE (%) ---
-  Moyenne  : 7.00
-  Mediane  : 8.53
-  Ecart-type : 6.62
-  P95      : 14.61
-  P99      : 15.63
-  Min      : 0.16
-  Max      : 19.71
+  Moyenne  : 8.65
+  Mediane  : 9.45
+  Ecart-type : 8.23
+  P95      : 18.17
+  P99      : 18.95
+  Min      : 0.21
+  Max      : 24.84
   Echantillons : 200
 
 --- RAM EDGE (%) ---
-  Moyenne  : 61.45
-  Mediane  : 61.83
-  Ecart-type : 0.95
-  P95      : 62.74
-  P99      : 63.07
-  Min      : 57.47
-  Max      : 63.11
+  Moyenne  : 58.19
+  Mediane  : 57.91
+  Ecart-type : 1.08
+  P95      : 59.72
+  P99      : 60.11
+  Min      : 55.59
+  Max      : 60.16
   Echantillons : 200
 
 --- PRECISION TUBERCULOSE : 80.0% ---

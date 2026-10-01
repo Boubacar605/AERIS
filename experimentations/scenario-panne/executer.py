@@ -104,19 +104,37 @@ def main() -> None:
     print(f"{'=' * 60}")
 
     if destinations_attendues:
-        _verifier_bascule(mesures, destinations_attendues)
+        durees_phases = [
+            p.get("duree_secondes", 0) for p in profils if p.get("duree_secondes", 0) > 0
+        ]
+        _verifier_bascule(mesures, destinations_attendues, durees_phases)
 
     print(f"\nScenario {config['nom']} termine.")
     print(f"Resultats dans : {dossier_resultats}")
 
 
+# Duree (en secondes) laissee a une phase pour se stabiliser avant de compter
+# ses mesures : au changement de profil, le redemarrage des conteneurs Edge
+# (docker start + demarrage uvicorn) prend quelques secondes pendant lesquelles
+# le moteur delegue prudemment au Cloud (repli 99 %). Compter ces mesures
+# fausserait le verdict d'une phase sans reflet de l'etat stable.
+SEUIL_STABILISATION_S = 15.0
+
+
 def _verifier_bascule(
     mesures: list[Mesure],
     destinations_attendues: dict[int, str],
+    durees_phases: list[int],
 ) -> None:
     """
     Verifie que les destinations observees correspondent aux attendus
     pour chaque phase du scenario.
+
+    Args:
+        mesures: Mesures collectees pendant le scenario.
+        destinations_attendues: {numero_phase: destination attendue}.
+        durees_phases: Durees de chaque phase (secondes), issues de la
+            configuration pour rester alignes sur le plan de charge.
     """
     # Calculer la duree totale et decouper en phases
     if not mesures:
@@ -136,11 +154,9 @@ def _verifier_bascule(
     fin = max(timestamps)
 
     # Reconstituer les durees des phases a partir de la config
-    # Phases : stable(30s), panne_edge(45s), stable(30s)
-    dureses_phases = [30, 45, 30]  # Doit correspondre a configuration.json
     bornes_phases: list[tuple[float, float]] = []
     t_courant = debut
-    for duree in dureses_phases:
+    for duree in durees_phases:
         bornes_phases.append((t_courant, t_courant + duree))
         t_courant += duree
 
@@ -151,7 +167,7 @@ def _verifier_bascule(
         destinations_phase: dict[str, int] = {}
 
         for m, ts in zip(mesures, timestamps):
-            if debut_phase <= ts <= fin_phase:
+            if debut_phase + SEUIL_STABILISATION_S <= ts <= fin_phase:
                 dest = m.destination
                 destinations_phase[dest] = destinations_phase.get(dest, 0) + 1
 

@@ -5,57 +5,57 @@ RAPPORT D'EXPERIMENTATION — TOLERANCE-PANNES
 Requetes totales : 100
   - Reussies : 100
   - En erreur : 0
-  - Routees Edge : 77
-  - Routees Cloud : 23
+  - Routees Edge : 72
+  - Routees Cloud : 28
 
 --- LATENCE END-TO-END (ms) ---
-  Moyenne  : 1094.46
-  Mediane  : 668.72
-  Ecart-type : 2056.19
-  P95      : 2238.44
-  P99      : 12291.20
-  Min      : 253.61
-  Max      : 12846.72
+  Moyenne  : 420.56
+  Mediane  : 431.44
+  Ecart-type : 414.88
+  P95      : 718.16
+  P99      : 2396.94
+  Min      : 128.99
+  Max      : 2495.42
   Echantillons : 100
 
 --- TEMPS D'INFERENCE TUBERCULOSE (ms) ---
-  Moyenne  : 364.04
-  Mediane  : 264.08
-  Ecart-type : 234.52
-  P95      : 683.44
-  P99      : 1024.53
-  Min      : 156.39
-  Max      : 1290.42
-  Echantillons : 47
+  Moyenne  : 333.00
+  Mediane  : 307.69
+  Ecart-type : 61.12
+  P95      : 443.52
+  P99      : 544.08
+  Min      : 278.30
+  Max      : 616.01
+  Echantillons : 50
 
 --- TEMPS D'INFERENCE PNEUMONIE (ms) ---
-  Moyenne  : 352.10
-  Mediane  : 333.42
-  Ecart-type : 133.02
-  P95      : 468.09
-  P99      : 841.47
-  Min      : 246.93
-  Max      : 1185.09
+  Moyenne  : 101.36
+  Mediane  : 94.73
+  Ecart-type : 37.50
+  P95      : 129.45
+  P99      : 244.64
+  Min      : 70.41
+  Max      : 334.94
   Echantillons : 50
 
 --- CPU EDGE (%) ---
-  Moyenne  : 0.00
-  Mediane  : 0.00
-  Ecart-type : 0.00
-  P95      : 0.00
-  P99      : 0.00
-  Min      : 0.00
-  Max      : 0.00
+  Moyenne  : 30.13
+  Mediane  : 5.80
+  Ecart-type : 43.36
+  P95      : 99.00
+  P99      : 99.00
+  Min      : 0.17
+  Max      : 99.00
   Echantillons : 100
 
 --- RAM EDGE (%) ---
-  Moyenne  : 0.00
-  Mediane  : 0.00
-  Ecart-type : 0.00
-  P95      : 0.00
-  P99      : 0.00
-  Min      : 0.00
-  Max      : 0.00
+  Moyenne  : 70.48
+  Mediane  : 60.07
+  Ecart-type : 17.95
+  P95      : 99.00
+  P99      : 99.00
+  Min      : 51.56
+  Max      : 99.00
   Echantillons : 100
 
 --- PRECISION TUBERCULOSE : 80.0% ---

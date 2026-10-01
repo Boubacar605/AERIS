@@ -5,61 +5,61 @@ RAPPORT D'EXPERIMENTATION — ADAPTATIF
 Requetes totales : 200
   - Reussies : 200
   - En erreur : 0
-  - Routees Edge : 102
-  - Routees Cloud : 98
+  - Routees Edge : 165
+  - Routees Cloud : 35
 
 --- LATENCE END-TO-END (ms) ---
-  Moyenne  : 778.18
-  Mediane  : 602.41
-  Ecart-type : 411.06
-  P95      : 1513.65
-  P99      : 1742.94
-  Min      : 235.77
-  Max      : 2992.89
+  Moyenne  : 481.80
+  Mediane  : 456.73
+  Ecart-type : 376.53
+  P95      : 1277.56
+  P99      : 1497.55
+  Min      : 118.45
+  Max      : 1619.08
   Echantillons : 200
 
 --- TEMPS D'INFERENCE TUBERCULOSE (ms) ---
-  Moyenne  : 320.83
-  Mediane  : 296.30
-  Ecart-type : 138.79
-  P95      : 513.25
-  P99      : 566.17
-  Min      : 77.57
-  Max      : 1409.65
+  Moyenne  : 273.92
+  Mediane  : 294.43
+  Ecart-type : 98.27
+  P95      : 420.12
+  P99      : 471.18
+  Min      : 79.72
+  Max      : 477.49
   Echantillons : 100
 
 --- TEMPS D'INFERENCE PNEUMONIE (ms) ---
-  Moyenne  : 735.17
-  Mediane  : 613.89
-  Ecart-type : 419.25
-  P95      : 1297.00
-  P99      : 1408.67
-  Min      : 270.15
-  Max      : 2698.24
+  Moyenne  : 200.45
+  Mediane  : 77.14
+  Ecart-type : 247.49
+  P95      : 823.41
+  P99      : 998.06
+  Min      : 63.72
+  Max      : 1105.28
   Echantillons : 100
 
 --- CPU EDGE (%) ---
-  Moyenne  : 0.00
-  Mediane  : 0.00
-  Ecart-type : 0.00
-  P95      : 0.00
-  P99      : 0.00
-  Min      : 0.00
-  Max      : 0.00
+  Moyenne  : 22.88
+  Mediane  : 9.29
+  Ecart-type : 35.98
+  P95      : 101.30
+  P99      : 104.43
+  Min      : 0.21
+  Max      : 106.69
   Echantillons : 200
 
 --- RAM EDGE (%) ---
-  Moyenne  : 0.00
-  Mediane  : 0.00
-  Ecart-type : 0.00
-  P95      : 0.00
-  P99      : 0.00
-  Min      : 0.00
-  Max      : 0.00
+  Moyenne  : 54.56
+  Mediane  : 54.17
+  Ecart-type : 1.10
+  P95      : 56.89
+  P99      : 56.94
+  Min      : 53.14
+  Max      : 57.04
   Echantillons : 200
 
 --- PRECISION TUBERCULOSE : 80.0% ---
---- PRECISION PNEUMONIE : 91.0% ---
+--- PRECISION PNEUMONIE : 80.0% ---
 
 
 NOTE METHODOLOGIQUE :

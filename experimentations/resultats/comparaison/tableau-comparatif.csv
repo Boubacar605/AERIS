@@ -1,0 +1,5 @@
+scenario,requete_edge,requete_cloud,erreur,latence_moy,latence_p95,inf_tb_moy,inf_pn_moy,cpu_moy,ram_moy,precision_tb,precision_pn
+Tout-Cloud,0,200,0,462.36,570.64,308.39,387.04,0.66,56.57,80.0,80.0
+Tout-Edge,200,0,0,177.38,219.48,89.09,96.93,8.65,58.19,80.0,90.0
+Adaptatif,165,35,0,481.8,1277.56,273.92,200.45,22.88,54.56,80.0,80.0
+Tolerance-pannes,72,28,0,420.56,718.16,333.0,101.36,30.13,70.48,80.0,90.0

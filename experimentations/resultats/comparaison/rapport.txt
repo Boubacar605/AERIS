@@ -1,0 +1,54 @@
+======================================================================
+TABLEAU COMPARATIF DES SCENARIOS D'EXPERIMENTATION
+======================================================================
+
+--- TOUT-CLOUD ---
+  Requetes : 200 (Edge: 0, Cloud: 200)
+  Latence moyenne : 462 ms (P95: 571 ms)
+  Inference TB moyenne : 308 ms
+  Inference PN moyenne : 387 ms
+  CPU Edge moyen : 0.7%
+  RAM Edge moyenne : 56.6%
+  Precision TB : 80.0%
+  Precision PN : 80.0%
+
+--- TOUT-EDGE ---
+  Requetes : 200 (Edge: 200, Cloud: 0)
+  Latence moyenne : 177 ms (P95: 219 ms)
+  Inference TB moyenne : 89 ms
+  Inference PN moyenne : 97 ms
+  CPU Edge moyen : 8.7%
+  RAM Edge moyenne : 58.2%
+  Precision TB : 80.0%
+  Precision PN : 90.0%
+
+--- ADAPTATIF ---
+  Requetes : 200 (Edge: 165, Cloud: 35)
+  Latence moyenne : 482 ms (P95: 1278 ms)
+  Inference TB moyenne : 274 ms
+  Inference PN moyenne : 200 ms
+  CPU Edge moyen : 22.9%
+  RAM Edge moyenne : 54.6%
+  Precision TB : 80.0%
+  Precision PN : 80.0%
+
+--- TOLERANCE-PANNES ---
+  Requetes : 100 (Edge: 72, Cloud: 28)
+  Latence moyenne : 421 ms (P95: 718 ms)
+  Inference TB moyenne : 333 ms
+  Inference PN moyenne : 101 ms
+  CPU Edge moyen : 30.1%
+  RAM Edge moyenne : 70.5%
+  Precision TB : 80.0%
+  Precision PN : 90.0%
+
+
+
+NOTE METHODOLOGIQUE :
+Ce jeu de demonstration utilise 10 images par pathologie (20 au total),
+issus de jeux de test publics (Shenzhen/Montgomery pour TB,
+Chest X-Ray Kaggle pour PN). Les resultats montrent le comportement
+architectural du systeme (routage, bascule, latence) mais ne constituent
+pas une evaluation clinique de la precision des modeles. Pour une
+evaluation publication, un echantillon de 100+ images par classe avec
+balance des classes serait necessaire.

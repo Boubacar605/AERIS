@@ -18,6 +18,10 @@ _CONTAINERS_EDGE = {
     "tuberculose": "aeris-tb-edge",
     "pneumonie": "aeris-pn-edge",
 }
+_CONTAINERS_CLOUD = {
+    "tuberculose": "aeris-tb-cloud",
+    "pneumonie": "aeris-pn-cloud",
+}
 _CONTAINERMOTEUR = "aeris-moteur-decision"
 
 
@@ -149,34 +153,34 @@ class GenerateurCharge:
 
     def _appliquer_reseau_lent(self) -> None:
         """
-        Simule une latence reseau elevee.
+        Simule une latence reseau elevee vers le Cloud.
 
-        En mode applicatif : on ne peut pas injecter de latence directement
-        sur le reseau Docker. On fait confiance au moteur de decision qui
-        mesure la latence via /sante du service Cloud. Si le Cloud est lent
-        (ou si on ajoute un delay via variable d'environnement), le moteur
-        basculera vers l'Edge.
-
-        Approche retenue : ajouter un sleep dans les healthchecks du moteur
-        ou dans un endpoint dedie. Pour la demo, on simule en modifiant
-        la variable SEUIL_LATENCE_MS du moteur de decision pour le rendre
-        plus sensible a la latence.
+        Les services Cloud exposent un endpoint /sante qui ajoute un delai
+        applicatif de ``LATENCE_SIMULEE`` millisecondes quand le fichier
+        ``/tmp/latence-simulee-ms`` existe dans leur conteneur. Ecrire ce
+        fichier rend le Cloud réellement plus lent a repondre, ce que le
+        moteur de decision mesure via son evaluation de latence (regle
+        "latence > seuil -> Edge"). Le delai est retabli a 0 par
+        ``_relever_reseau_lent``.
         """
         if self._est_docker:
-            # Abaisser le seuil de latence pour que le moteur considere
-            # le reseau comme "lent" plus facilement
-            self._executer_docker(
-                ["exec", _CONTAINERMOTEUR, "sh", "-c",
-                 "export SEUIL_LATENCE_MS=10 && echo 'Seuil latence abaisse'"]
-            )
-            print("  [CHARGE] Seuil de latence abaisse a 10ms")
+            valeur = "300"
+            for container in _CONTAINERS_CLOUD.values():
+                self._executer_docker(
+                    ["exec", container, "sh", "-c",
+                     f"echo {valeur} > /tmp/latence-simulee-ms"]
+                )
+            print(f"  [CHARGE] Latence simulee de {valeur}ms injectee vers le Cloud")
 
     def _relever_reseau_lent(self) -> None:
-        """Restaure le seuil de latence par defaut."""
-        # Le seuil est dans l'environnement du conteneur, il suffit de
-        # redemarrer avec la config normale. En pratique, pour la demo,
-        # on note que le seuil doit etre restaure.
-        print("  [CHARGE] Seuil de latence restaure (80ms par defaut)")
+        """Supprime le delai applicatif injecte sur les services Cloud."""
+        if self._est_docker:
+            for container in _CONTAINERS_CLOUD.values():
+                self._executer_docker(
+                    ["exec", container, "sh", "-c",
+                     "rm -f /tmp/latence-simulee-ms"]
+                )
+            print("  [CHARGE] Latence simulee retablie (0ms)")
 
     def _appliquer_reseau_coupure(self) -> None:
         """
@@ -197,49 +201,68 @@ class GenerateurCharge:
                 self._executer_docker(["start", container])
             print("  [CHARGE] Services Cloud redemarres")
 
+    _MARQUEUR_SATURATION = "while True: pass"
+
     def _appliquer_cpu_sature(self) -> None:
         """
         Simule une saturation CPU sur les services Edge.
 
-        Utilise stress-ng si disponible, sinon alloue des threads
-        Python en boucle.
+        Prefere stress-ng quand il est disponible dans le conteneur,
+        sinon lance des boucles Python inline (aucune dependance apt :
+        une installation a chaud sous timeout laisserait des orphelins
+        apt-get verrouillant dpkg).
         """
-        if self._est_docker:
-            for container in _CONTAINERS_EDGE.values():
-                # Installer stress-ng si necessaire puis le lancer
+        if not self._est_docker:
+            print("  [CHARGE] Mode non-Docker : saturation CPU non simulable")
+            return
+        for container in _CONTAINERS_EDGE.values():
+            presence = self._executer_docker(
+                ["exec", container, "sh", "-c", "command -v stress-ng || true"]
+            )
+            if "stress-ng" in presence.stdout:
                 self._executer_docker(
                     ["exec", "-d", container, "sh", "-c",
-                     "apt-get update -qq && apt-get install -y -qq stress-ng "
-                     "> /dev/null 2>&1 && stress-ng --cpu 4 --timeout 120s"]
+                     "stress-ng --cpu 4 --timeout 300s"]
                 )
-            print("  [CHARGE] stress-ng lance sur les conteneurs Edge (4 CPU)")
-        else:
-            print("  [CHARGE] Mode non-Docker : saturation CPU non simulable")
+            else:
+                self._executer_docker(
+                    ["exec", "-d", container, "sh", "-c",
+                     f"for i in 1 2 3 4; do python3 -c "
+                     f"\"{self._MARQUEUR_SATURATION}\" & done; wait"]
+                )
+        print("  [CHARGE] Saturation CPU lancee sur les conteneurs Edge (4 processus)")
 
     def _relever_cpu_sature(self) -> None:
-        """Arrete les processus de stress."""
+        """Arrete les processus de stress (stress-ng ou boucles Python)."""
         if self._est_docker:
             for container in _CONTAINERS_EDGE.values():
                 self._executer_docker(
-                    ["exec", container, "sh", "-c", "pkill -f stress-ng || true"]
+                    ["exec", container, "sh", "-c",
+                     "for p in /proc/[0-9]*; do cmd=$(cat $p/cmdline "
+                     "2>/dev/null | tr '\\0' ' '); "
+                     "case \"$cmd\" in *\"while True: pass\"*|*stress-ng*) "
+                     "kill -9 ${p#/proc/} 2>/dev/null;; esac; done"]
                 )
-            print("  [CHARGE] stress-ng arrete sur les conteneurs Edge")
+            print("  [CHARGE] Saturation CPU arretee sur les conteneurs Edge")
 
     def _appliquer_panne_edge(self) -> None:
         """
         Simule une panne du service Edge.
 
-        Arrete le conteneur Docker du service TB Edge.
+        Arrete les conteneurs Docker des deux services Edge (TB et PN) :
+        une panne d'infrastructure locale touche l'ensemble du noeud.
         """
         if self._est_docker:
-            self._executer_docker(["stop", _CONTAINERS_EDGE["tuberculose"]])
-            print(f"  [CHARGE] Conteneur {_CONTAINERS_EDGE['tuberculose']} arrete")
+            for container in _CONTAINERS_EDGE.values():
+                self._executer_docker(["stop", container])
+                print(f"  [CHARGE] Conteneur {container} arrete")
 
     def _relever_panne_edge(self) -> None:
-        """Redemarre le service Edge arrete."""
+        """Redemarre les services Edge arretes."""
         if self._est_docker:
-            self._executer_docker(["start", _CONTAINERS_EDGE["tuberculose"]])
-            print(f"  [CHARGE] Conteneur {_CONTAINERS_EDGE['tuberculose']} redemarre")
+            for container in _CONTAINERS_EDGE.values():
+                self._executer_docker(["start", container])
+                print(f"  [CHARGE] Conteneur {container} demarre")
 
     def _executer_docker(self, commande: list[str]) -> subprocess.CompletedProcess:
         """Execute une commande docker et retourne le resultat."""
@@ -251,7 +274,7 @@ class GenerateurCharge:
                 text=True,
                 timeout=30,
             )
-            if result.returncode != 0:
+            if result.returncode != 0 and result.stderr.strip():
                 print(f"  [AVERTISSEMENT] Erreur Docker : {result.stderr.strip()}")
             return result
         except FileNotFoundError:
