@@ -32,8 +32,9 @@ class _RepondeurInference:
         )
 
 
-def _patcher_environnement(monkeypatch, cpu: float = 20.0, ram: float = 30.0,
-                           reseau_ok: bool = True, latence: float = 30.0) -> None:
+def _patcher_environnement(
+    monkeypatch, cpu: float = 20.0, ram: float = 30.0, reseau_ok: bool = True, latence: float = 30.0
+) -> None:
     """Rend l'environnement stable : metriques faibles et reseau nominal."""
 
     async def _metriques():
@@ -46,13 +47,24 @@ def _patcher_environnement(monkeypatch, cpu: float = 20.0, ram: float = 30.0,
 
 def _profil_fabrique(**champs) -> ProfilImage:
     """Profil TB net (PNG carre) construit sans passer par Pillow."""
-    return ProfilImage(format="PNG", largeur_px=300, hauteur_px=300,
-                       ratio_largeur_hauteur=1.0, mode_canaux="RGB",
-                       taille_octets=1024, indecodable=False, **champs)
+    return ProfilImage(
+        format="PNG",
+        largeur_px=300,
+        hauteur_px=300,
+        ratio_largeur_hauteur=1.0,
+        mode_canaux="RGB",
+        taille_octets=1024,
+        indecodable=False,
+        **champs,
+    )
 
 
-async def _decider_avec(repondeur: _RepondeurInference, monkeypatch,
-                        contenu: bytes = b"image", contexte: str | None = None):
+async def _decider_avec(
+    repondeur: _RepondeurInference,
+    monkeypatch,
+    contenu: bytes = b"image",
+    contexte: str | None = None,
+):
     """Lance decider_destination avec repondeur et profilage injectes."""
     monkeypatch.setattr(selecteur, "_appeler_service", repondeur)
     return await selecteur.decider_destination(contenu, contexte=contexte)
@@ -78,8 +90,12 @@ def test_filet_escalade_actif_sur_pathologie_executee(monkeypatch):
     """TB seul avec confiance 0.58 -> escalade TB vers cloud ; PN jamais appelee."""
     _patcher_environnement(monkeypatch)
     monkeypatch.setattr(selecteur, "construire_profil", lambda c, n=None: _profil_fabrique())
-    repondeur = _RepondeurInference({("edge", "tuberculose"): {"confiance": 0.58},
-                                     ("cloud", "tuberculose"): {"confiance": 0.99}})
+    repondeur = _RepondeurInference(
+        {
+            ("edge", "tuberculose"): {"confiance": 0.58},
+            ("cloud", "tuberculose"): {"confiance": 0.99},
+        }
+    )
     reponse = asyncio.run(_decider_avec(repondeur, monkeypatch))
 
     assert ("cloud", "tuberculose") in repondeur.appels
@@ -111,8 +127,9 @@ def test_image_indecodable_lance_les_deux(monkeypatch):
     _patcher_environnement(monkeypatch)
     # On utilise le veritable construire_profil : le contenu est du garbage.
     repondeur = _RepondeurInference({})
-    reponse = asyncio.run(_decider_avec(repondeur, monkeypatch,
-                                        contenu=b"ceci n'est pas une image"))
+    reponse = asyncio.run(
+        _decider_avec(repondeur, monkeypatch, contenu=b"ceci n'est pas une image")
+    )
 
     assert sorted(repondeur.appels) == [
         ("edge", "pneumonie"),

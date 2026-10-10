@@ -27,7 +27,7 @@ from __future__ import annotations
 
 import time
 from collections import deque
-from typing import Callable
+from collections.abc import Callable
 
 from fastapi import Request
 from fastapi.responses import JSONResponse
@@ -93,8 +93,7 @@ class LimiteurDebit(BaseHTTPMiddleware):
                     status_code=429,
                     content={
                         "detail": (
-                            "Trop de requetes sur cette route. "
-                            "Reessayez dans une minute."
+                            "Trop de requetes sur cette route. " "Reessayez dans une minute."
                         )
                     },
                 )

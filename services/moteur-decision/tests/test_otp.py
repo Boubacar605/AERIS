@@ -5,10 +5,9 @@ from __future__ import annotations
 import types
 
 import pytest
-from fastapi.testclient import TestClient
-
 from app import persistance
 from app.otp import generer_otp, hacher_otp
+from fastapi.testclient import TestClient
 
 
 def _patient(code: str = "AERIS-2026-0001") -> types.SimpleNamespace:
@@ -23,6 +22,7 @@ def _patient(code: str = "AERIS-2026-0001") -> types.SimpleNamespace:
 # ---------------------------------------------------------------------------
 # Helpers purs
 # ---------------------------------------------------------------------------
+
 
 def test_generer_otp_est_numerique_et_de_bonne_longueur():
     """Un OTP est compose de chiffres uniquement, de la longueur demandee."""
@@ -45,6 +45,7 @@ def test_hacher_otp_est_un_sha256_hex():
 # ---------------------------------------------------------------------------
 # Endpoint public /acces-resultat
 # ---------------------------------------------------------------------------
+
 
 def test_acces_resultat_avec_otp_valide_retourne_patient_et_resultats(
     client: TestClient, monkeypatch: pytest.MonkeyPatch
@@ -77,9 +78,7 @@ def test_acces_resultat_avec_otp_valide_retourne_patient_et_resultats(
     assert donnees["resultats"][0]["resultats"][0]["prediction"] == "negatif"
 
 
-def test_acces_resultat_otp_invalide_refuse(
-    client: TestClient, monkeypatch: pytest.MonkeyPatch
-):
+def test_acces_resultat_otp_invalide_refuse(client: TestClient, monkeypatch: pytest.MonkeyPatch):
     """OTP inconnu ou epuise -> 401 sans detail d'emoi."""
 
     async def _verifier(code: str, destination: str):
@@ -93,9 +92,7 @@ def test_acces_resultat_otp_invalide_refuse(
     assert reponse.status_code == 401
 
 
-def test_acces_resultat_est_public_sans_token(
-    client: TestClient, monkeypatch: pytest.MonkeyPatch
-):
+def test_acces_resultat_est_public_sans_token(client: TestClient, monkeypatch: pytest.MonkeyPatch):
     """Un patient n'a jamais besoin de compte : le flux est public.
 
     Aucun en-tete Authorization n'est fourni ; seul le verdict OTP compte.
@@ -106,15 +103,14 @@ def test_acces_resultat_est_public_sans_token(
 
     monkeypatch.setattr(persistance, "verifier_otp", _verifier)
 
-    reponse = client.post(
-        "/acces-resultat", json={"code_otp": "999999", "email": "x@example.org"}
-    )
+    reponse = client.post("/acces-resultat", json={"code_otp": "999999", "email": "x@example.org"})
     assert reponse.status_code == 401
 
 
 # ---------------------------------------------------------------------------
 # Canal WhatsApp : destination OTP normalisée
 # ---------------------------------------------------------------------------
+
 
 def test_renvoyer_otp_whatsapp_stoque_la_destination_normalisee(
     client: TestClient, monkeypatch: pytest.MonkeyPatch, admin_token: str

@@ -20,17 +20,15 @@ mémoire seule : aucun repli fragile, aucun crash.
 import asyncio
 import hashlib
 import logging
-import secrets
 from collections import deque
+from datetime import UTC, datetime
 from datetime import date as date_naissance
-from datetime import datetime, timezone
 
 from sqlalchemy import (
     BigInteger,
     Boolean,
     Date,
     DateTime,
-    Enum as SqlEnum,
     Float,
     ForeignKey,
     Integer,
@@ -40,13 +38,16 @@ from sqlalchemy import (
     bindparam,
     text,
 )
+from sqlalchemy import (
+    Enum as SqlEnum,
+)
+from sqlalchemy.dialects.postgresql import ARRAY
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
     async_sessionmaker,
     create_async_engine,
 )
-from sqlalchemy.dialects.postgresql import ARRAY
-from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 from app.config import config
@@ -90,9 +91,7 @@ enum_role = _enum("admin", "clinicien", nom="t_role")
 # DISTINCT ON dans v_etat_validation. « en_attente » n'est jamais cree en
 # masse — l'absence de ligne vaut deja « a valider », sa presence signifie que
 # le clinicien a explicitement differe son verdict (et programme un suivi).
-enum_statut_validation = _enum(
-    "en_attente", "approuve", "desapprouve", nom="t_statut_validation"
-)
+enum_statut_validation = _enum("en_attente", "approuve", "desapprouve", nom="t_statut_validation")
 enum_statut_suivi = _enum("planifie", "realise", "annule", nom="t_statut_suivi")
 
 
@@ -107,9 +106,7 @@ class Patient(Base):
     # naissance ; nom_complet reste la forme d'affichage prenom + nom.
     nom: Mapped[str] = mapped_column(Text, default="")
     prenom: Mapped[str] = mapped_column(Text, default="")
-    date_naissance: Mapped[date_naissance | None] = mapped_column(
-        Date
-    )
+    date_naissance: Mapped[date_naissance | None] = mapped_column(Date)
     note: Mapped[str | None] = mapped_column(Text)
     email: Mapped[str | None] = mapped_column(Text, unique=True)
     telephone: Mapped[str | None] = mapped_column(Text)
@@ -128,7 +125,9 @@ class ExamenImage(Base):
     taille_octets: Mapped[int] = mapped_column(BigInteger, default=0)
     hash_contenu: Mapped[str] = mapped_column(String, unique=True)
     chemin_stockage: Mapped[str | None] = mapped_column(String)
-    importer_le: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=text("now()"))
+    importer_le: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=text("now()")
+    )
 
 
 class ModeleIA(Base):
@@ -202,9 +201,7 @@ class ProfilImageAnalyse(Base):
     mode_canaux: Mapped[str | None] = mapped_column(String)
     taille_octets: Mapped[int | None] = mapped_column(BigInteger)
     indecodable: Mapped[bool] = mapped_column(Boolean, default=False)
-    specialistes_admissibles: Mapped[list[str]] = mapped_column(
-        ARRAY(Text), default=list
-    )
+    specialistes_admissibles: Mapped[list[str]] = mapped_column(ARRAY(Text), default=list)
     cle_regle: Mapped[str | None] = mapped_column(String)
     regle_appliquee: Mapped[str | None] = mapped_column(Text)
     specialiste_ecarte: Mapped[str | None] = mapped_column(enum_pathologie)
@@ -216,9 +213,7 @@ class ResultatPathologique(Base):
     __table_args__ = (UniqueConstraint("id_diagnostic", "pathologie"),)
 
     id_resultat: Mapped[int] = mapped_column(BigInteger, primary_key=True)
-    id_diagnostic: Mapped[int] = mapped_column(
-        BigInteger, ForeignKey("diagnostics.id_diagnostic")
-    )
+    id_diagnostic: Mapped[int] = mapped_column(BigInteger, ForeignKey("diagnostics.id_diagnostic"))
     id_modele: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("modeles_ia.id_modele"))
     pathologie: Mapped[str] = mapped_column(enum_pathologie)
     prediction: Mapped[str] = mapped_column(enum_verdict)
@@ -235,9 +230,7 @@ class EscaladeControle(Base):
     __tablename__ = "escalades_controle"
 
     id_escalade: Mapped[int] = mapped_column(BigInteger, primary_key=True)
-    id_diagnostic: Mapped[int] = mapped_column(
-        BigInteger, ForeignKey("diagnostics.id_diagnostic")
-    )
+    id_diagnostic: Mapped[int] = mapped_column(BigInteger, ForeignKey("diagnostics.id_diagnostic"))
     id_resultat: Mapped[int | None] = mapped_column(
         BigInteger, ForeignKey("resultats_pathologiques.id_resultat")
     )
@@ -263,9 +256,7 @@ class Utilisateur(Base):
     role: Mapped[str] = mapped_column(enum_role, nullable=False)
     mot_de_passe_hash: Mapped[str] = mapped_column(String, nullable=False)
     actif: Mapped[bool] = mapped_column(Boolean, default=True)
-    cree_le: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=text("now()")
-    )
+    cree_le: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=text("now()"))
     modifie_le: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
@@ -274,9 +265,7 @@ class CodeOtp(Base):
 
     id_otp: Mapped[int] = mapped_column(BigInteger, primary_key=True)
     id_patient: Mapped[int] = mapped_column(BigInteger, ForeignKey("patients.id_patient"))
-    id_examen: Mapped[int | None] = mapped_column(
-        BigInteger, ForeignKey("examens_image.id_examen")
-    )
+    id_examen: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("examens_image.id_examen"))
     email_destination: Mapped[str] = mapped_column(Text, nullable=False)
     code_hash: Mapped[str] = mapped_column(String, nullable=False)
     expire_le: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
@@ -286,9 +275,7 @@ class CodeOtp(Base):
     # patient l'acces au code deja envoye. Le code reste en base (trace de ce
     # qui a ete notifie) mais n'est plus accepte par verifier_otp.
     revoque_le: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    cree_le: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=text("now()")
-    )
+    cree_le: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=text("now()"))
 
 
 class SuiviClinique(Base):
@@ -297,18 +284,14 @@ class SuiviClinique(Base):
     __tablename__ = "suivis_cliniques"
 
     id_suivi: Mapped[int] = mapped_column(BigInteger, primary_key=True)
-    id_patient: Mapped[int] = mapped_column(
-        BigInteger, ForeignKey("patients.id_patient")
-    )
+    id_patient: Mapped[int] = mapped_column(BigInteger, ForeignKey("patients.id_patient"))
     id_examen_origine: Mapped[int | None] = mapped_column(
         BigInteger, ForeignKey("examens_image.id_examen")
     )
     date_suivi: Mapped[date_naissance] = mapped_column(Date, nullable=False)
     motif: Mapped[str | None] = mapped_column(Text)
     statut: Mapped[str] = mapped_column(enum_statut_suivi, default="planifie")
-    cree_le: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=text("now()")
-    )
+    cree_le: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=text("now()"))
 
 
 class ValidationClinique(Base):
@@ -321,9 +304,7 @@ class ValidationClinique(Base):
     __tablename__ = "validations_cliniques"
 
     id_validation: Mapped[int] = mapped_column(BigInteger, primary_key=True)
-    id_examen: Mapped[int] = mapped_column(
-        BigInteger, ForeignKey("examens_image.id_examen")
-    )
+    id_examen: Mapped[int] = mapped_column(BigInteger, ForeignKey("examens_image.id_examen"))
     id_utilisateur: Mapped[int | None] = mapped_column(
         BigInteger, ForeignKey("utilisateurs.id_utilisateur")
     )
@@ -331,9 +312,7 @@ class ValidationClinique(Base):
     statut: Mapped[str] = mapped_column(enum_statut_validation, nullable=False)
     note_clinique: Mapped[str | None] = mapped_column(Text)
     motif_desaccord: Mapped[str | None] = mapped_column(Text)
-    cree_le: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=text("now()")
-    )
+    cree_le: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=text("now()"))
 
 
 # ---------------------------------------------------------------------------
@@ -450,9 +429,7 @@ async def _ajouter_colonnes_manquantes() -> None:
         await connexion.execute(
             text("ALTER TABLE otp_codes ADD COLUMN IF NOT EXISTS revoque_le TIMESTAMPTZ")
         )
-        await connexion.execute(
-            text(
-                """
+        await connexion.execute(text("""
                 CREATE OR REPLACE VIEW v_etat_validation AS
                 SELECT DISTINCT ON (v.id_examen)
                        v.id_examen,
@@ -465,12 +442,8 @@ async def _ajouter_colonnes_manquantes() -> None:
                  FROM validations_cliniques v
                  LEFT JOIN utilisateurs u ON u.id_utilisateur = v.id_utilisateur
                  ORDER BY v.id_examen, v.id_validation DESC
-                 """
-            )
-        )
-        await connexion.execute(
-            text(
-                """
+                 """))
+        await connexion.execute(text("""
                 CREATE OR REPLACE VIEW v_protocole_validation AS
                 SELECT
                     (SELECT COUNT(DISTINCT d.id_examen)
@@ -496,9 +469,7 @@ async def _ajouter_colonnes_manquantes() -> None:
                     (SELECT COALESCE(ROUND(AVG(EXTRACT(EPOCH FROM (v.cree_le - d.execute_le)) / 3600), 1), 0)
                        FROM validations_cliniques v
                        JOIN diagnostics d ON d.id_examen = v.id_examen) AS delai_moyen_heures
-                """
-            )
-        )
+                """))
 
 
 async def _assurer_referentiels() -> None:
@@ -509,9 +480,7 @@ async def _assurer_referentiels() -> None:
     """
     async with _sessions() as session:
         async with session.begin():
-            resultat_codes = await session.execute(
-                text("SELECT identifiant_code FROM modeles_ia")
-            )
+            resultat_codes = await session.execute(text("SELECT identifiant_code FROM modeles_ia"))
             existants = {m for m in resultat_codes.scalars().all()}
             for code, patho, env in (
                 ("tb-edge", "tuberculose", "edge"),
@@ -571,7 +540,9 @@ async def _assurer_admin_initial(session: AsyncSession) -> None:
     from app.authentification import hacher_mot_de_passe
 
     resultat = await session.execute(
-        text("SELECT id_utilisateur FROM utilisateurs WHERE role = 'admin' AND actif = true LIMIT 1")
+        text(
+            "SELECT id_utilisateur FROM utilisateurs WHERE role = 'admin' AND actif = true LIMIT 1"
+        )
     )
     if resultat.scalar() is not None:
         return
@@ -685,9 +656,11 @@ async def creer_utilisateur(
                 nom=nom,
                 prenom=prenom,
                 role=role,
-                mot_de_passe_hash=hacher_mot_de_passe(mot_de_passe_hash)
-                if not mot_de_passe_hash.startswith("$2")
-                else mot_de_passe_hash,
+                mot_de_passe_hash=(
+                    hacher_mot_de_passe(mot_de_passe_hash)
+                    if not mot_de_passe_hash.startswith("$2")
+                    else mot_de_passe_hash
+                ),
                 actif=True,
             )
             session.add(utilisateur)
@@ -734,9 +707,7 @@ async def lister_patients() -> list[dict]:
                 "cree_le": _iso(r[8]),
                 "nom": r[9],
                 "prenom": r[10],
-                "date_naissance": (
-                    r[11].isoformat() if r[11] is not None else None
-                ),
+                "date_naissance": (r[11].isoformat() if r[11] is not None else None),
             }
             for r in resultat.all()
         ]
@@ -809,7 +780,7 @@ async def generer_code_patient() -> str:
     l'annee courante (la colonne code_patient est UNIQUE : une eventuelle
     collision entre cliniciens concurrents est rejouee par la route).
     """
-    annee = datetime.now(timezone.utc).year
+    annee = datetime.now(UTC).year
     prefixe = f"AER-{annee}-"
     suffixe_max = 0
     if _sessions is not None:
@@ -885,7 +856,7 @@ from app.otp import generer_otp, hacher_otp  # noqa: E402
 # autant de fois qu'il le souhaite, y compris des mois plus tard. La colonne
 # `expire_le` reste NOT NULL en base (contrainte historique) et reçoit donc
 # cette echeance lointaine plutot que NULL.
-EXPIRE_LE_PERMANENT = datetime(2999, 12, 31, 23, 59, 59, tzinfo=timezone.utc)
+EXPIRE_LE_PERMANENT = datetime(2999, 12, 31, 23, 59, 59, tzinfo=UTC)
 
 
 async def _creer_ligne_otp(
@@ -998,7 +969,16 @@ async def verifier_otp(code: str, destination: str) -> Patient | None:
                 )
                 return None
 
-            id_otp, id_patient, hash_db, expire_le, tentatives, utilise_le, email_dest, revoque_le = ligne
+            (
+                id_otp,
+                id_patient,
+                hash_db,
+                expire_le,
+                tentatives,
+                utilise_le,
+                email_dest,
+                revoque_le,
+            ) = ligne
 
             # Code revoque (Vague 1) : le clinicien a desapprove l'examen apres
             # l'envoi. Le code reste trace en base mais n'ouvre plus rien.
@@ -1034,8 +1014,7 @@ async def verifier_otp(code: str, destination: str) -> Patient | None:
             # au patient son quota de tentatives.
             await session.execute(
                 text(
-                    "UPDATE otp_codes SET utilise_le = now(), tentatives = 0 "
-                    "WHERE id_otp = :id"
+                    "UPDATE otp_codes SET utilise_le = now(), tentatives = 0 " "WHERE id_otp = :id"
                 ),
                 {"id": id_otp},
             )
@@ -1130,9 +1109,7 @@ _VERDITS_CLINIQUES_SQL = """
     ORDER BY rp.id_diagnostic, rp.rang
 """.strip()
 
-_VERDITS_CLINIQUES = text(_VERDITS_CLINIQUES_SQL).bindparams(
-    bindparam("ids", expanding=True)
-)
+_VERDITS_CLINIQUES = text(_VERDITS_CLINIQUES_SQL).bindparams(bindparam("ids", expanding=True))
 
 
 async def _verdits_par_diagnostic(ids: list[int]) -> dict[int, list[dict]]:
@@ -1482,17 +1459,15 @@ async def lister_file_triage(seuil_alerte_jours: int = 2) -> dict:
         # Un seul passage pour tous les etats de validation : la vue fait deja
         # le DISTINCT ON, on evite un etat_validation() par ligne du triage.
         etats = (
-            await session.execute(
-                text("SELECT id_examen, statut FROM v_etat_validation")
-            )
+            await session.execute(text("SELECT id_examen, statut FROM v_etat_validation"))
         ).all()
         valide = {r[0] for r in etats if r[1] == "approuve"}
-        desapprouve = {r[0] for r in etats if r[1] == "desapprouve"}
-        en_attente = {r[0] for r in etats}
+        {r[0] for r in etats if r[1] == "desapprouve"}
+        {r[0] for r in etats}
 
     verdicts = await _verdits_par_diagnostic([r[1] for r in lignes])
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     examens = []
     for (
         id_examen,
@@ -1513,13 +1488,6 @@ async def lister_file_triage(seuil_alerte_jours: int = 2) -> dict:
         verds = verdicts.get(id_diagnostic, [])
         positifs = [v for v in verds if v["prediction"] == "positif"]
         verdict = max(positifs, key=lambda v: v["confiance"]) if positifs else None
-        statut = (
-            "desapprouve"
-            if id_examen in desapprouve
-            else "en_attente"
-            if id_examen in en_attente
-            else "sans_decision"
-        )
         # Age en jours entiers : un examen fait il y a 6 h compte pour 0 jour,
         # ce qui evite d'alerter sur un examen de la journee en cours.
         age = now - execute_le
@@ -1734,9 +1702,7 @@ async def _ecrire_diagnostics(items: list[dict]) -> None:
                 # id_patient du sujet réel (code_patient transmis à l'analyse)
                 # si présent dans le lot ; sinon, repli sur le patient
                 # technique anonyme par défaut.
-                id_patient = element.get("id_patient") or await _obtenir_patient_par_defaut(
-                    session
-                )
+                id_patient = element.get("id_patient") or await _obtenir_patient_par_defaut(session)
                 # Examen deja prepare par la route (Vague 1) : on le reutilise
                 # tel quel. Sinon on retombe sur la creation asynchrone d'origine.
                 id_examen = element.get("id_examen") or await _obtenir_ou_creer_examen(
@@ -1754,7 +1720,9 @@ async def _ecrire_diagnostics(items: list[dict]) -> None:
                     reseau_disponible=_bool(element.get("metriques"), "reseau_disponible"),
                     temps_total_ms=float(element.get("temps_total_ms", 0.0)),
                     temps_escalade_ms=(
-                        float(element["temps_escalade_ms"]) if element.get("temps_escalade_ms") else None
+                        float(element["temps_escalade_ms"])
+                        if element.get("temps_escalade_ms")
+                        else None
                     ),
                     statut=element.get("statut", "completed"),
                 )
@@ -1773,7 +1741,9 @@ async def _ecrire_diagnostics(items: list[dict]) -> None:
                     if cle not in ids_modeles:
                         ids_modeles[cle] = await _obtenir_id_modele(session, *cle)
                     session.add(
-                        _construire_resultat(resultat, diagnostic.id_diagnostic, rang, ids_modeles[cle])
+                        _construire_resultat(
+                            resultat, diagnostic.id_diagnostic, rang, ids_modeles[cle]
+                        )
                     )
 
                 for escalade in element.get("escalades", []):
@@ -1869,13 +1839,9 @@ async def preparer_examen(
         return None
 
 
-async def _obtenir_ou_creer_examen(
-    session: AsyncSession, element: dict, id_patient: int
-) -> int:
+async def _obtenir_ou_creer_examen(session: AsyncSession, element: dict, id_patient: int) -> int:
     """Dédoublonne par empreinte SHA-256 du contenu."""
-    hash_contenu = element.get("hash_contenu") or _hacher_contenu(
-        element.get("contenu", b"")
-    )
+    hash_contenu = element.get("hash_contenu") or _hacher_contenu(element.get("contenu", b""))
     resultat = await session.execute(
         text("SELECT id_examen FROM examens_image WHERE hash_contenu = :hash"),
         {"hash": hash_contenu},
@@ -1892,10 +1858,7 @@ async def _obtenir_ou_creer_examen(
         )
         if ligne.scalar() != id_patient:
             await session.execute(
-                text(
-                    "UPDATE examens_image SET id_patient = :p "
-                    "WHERE id_examen = :id"
-                ),
+                text("UPDATE examens_image SET id_patient = :p " "WHERE id_examen = :id"),
                 {"p": id_patient, "id": identifiant},
             )
         return identifiant
@@ -2153,21 +2116,29 @@ async def recuperer_etat_historique() -> dict:
         ).all()
 
         temps_edge = (
-            await session.execute(
-                text(
-                    "SELECT temps_inference_ms FROM resultats_pathologiques "
-                    "WHERE source_finale = 'edge'"
+            (
+                await session.execute(
+                    text(
+                        "SELECT temps_inference_ms FROM resultats_pathologiques "
+                        "WHERE source_finale = 'edge'"
+                    )
                 )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
         temps_cloud = (
-            await session.execute(
-                text(
-                    "SELECT temps_inference_ms FROM resultats_pathologiques "
-                    "WHERE source_finale = 'cloud'"
+            (
+                await session.execute(
+                    text(
+                        "SELECT temps_inference_ms FROM resultats_pathologiques "
+                        "WHERE source_finale = 'cloud'"
+                    )
                 )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
 
         historique = []
         for ligne in lignes:
@@ -2246,6 +2217,7 @@ def _iso(valeur) -> str:
 
 def _opt_v(valeur) -> float | None:
     return float(valeur) if valeur is not None else None
+
 
 async def verdits_cliniques_examen(id_examen: int) -> list[dict]:
     """Verdicts cliniques du dernier diagnostic d'un examen (Vague 2).
@@ -2343,14 +2315,12 @@ async def existe_otp_actif_patient(id_patient: int) -> bool:
         return False
     async with _sessions() as session:
         compte = await session.execute(
-            text(
-                """
+            text("""
                 SELECT COUNT(*)
                   FROM otp_codes
                  WHERE id_patient = :id_patient
                    AND revoque_le IS NULL
-                """
-            ),
+                """),
             {"id_patient": id_patient},
         )
     return int(compte.scalar() or 0) > 0
@@ -2360,8 +2330,7 @@ async def existe_otp_actif_patient(id_patient: int) -> bool:
 # Synthese du poste (tableau de bord clinicien)
 # ---------------------------------------------------------------------------
 
-_SYNTHESE_FILE_SQL = text(
-    """
+_SYNTHESE_FILE_SQL = text("""
     WITH dernier AS (
         SELECT DISTINCT ON (dg.id_examen)
                dg.id_examen, dg.id_diagnostic, dg.execute_le
@@ -2374,8 +2343,7 @@ _SYNTHESE_FILE_SQL = text(
            COALESCE(ve.statut::text, 'sans_decision') AS etat
     FROM dernier l
     LEFT JOIN v_etat_validation ve ON ve.id_examen = l.id_examen
-    """
-)
+    """)
 
 
 async def synthese_poste(seuil_alerte_jours: int = 2) -> dict:
@@ -2399,7 +2367,7 @@ async def synthese_poste(seuil_alerte_jours: int = 2) -> dict:
     if not _sessions:
         raise SQLAlchemyError("Base de donnees indisponible")
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     # 1. File : etat courant et anciennete de chaque examen analyse.
     async with _sessions() as session:
@@ -2494,13 +2462,16 @@ async def synthese_poste(seuil_alerte_jours: int = 2) -> dict:
 
     # Anciennete de la file, en tranches. Ordre fixe : c'est un classement
     # d'urgence, pas un tri de valeurs.
-    bornes = (("aujourd_hui", 0, 0), ("1_jour", 1, 1), ("2_a_6_jours", 2, 6), ("plus_de_7_jours", 7, None))
+    bornes = (
+        ("aujourd_hui", 0, 0),
+        ("1_jour", 1, 1),
+        ("2_a_6_jours", 2, 6),
+        ("plus_de_7_jours", 7, None),
+    )
     anciennete = []
     for libelle, mini, maxi in bornes:
         nombre = sum(
-            1
-            for r in a_valider
-            if _jours(r) >= mini and (maxi is None or _jours(r) <= maxi)
+            1 for r in a_valider if _jours(r) >= mini and (maxi is None or _jours(r) <= maxi)
         )
         anciennete.append({"tranche": libelle, "examens": nombre})
 
@@ -2560,9 +2531,7 @@ async def synthese_poste(seuil_alerte_jours: int = 2) -> dict:
         "decisions_par_jour": decisions_par_jour,
         "verdits_par_pathologie": verdits_par_pathologie,
         "suivis": {
-            "a_venir": [
-                e for e in echeances if e["statut"] == "planifie"
-            ],
+            "a_venir": [e for e in echeances if e["statut"] == "planifie"],
             "par_statut": statuts_suivis,
             "total": len(echeances),
             "realises": statuts_suivis.get("realise", 0),

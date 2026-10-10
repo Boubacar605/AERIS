@@ -55,9 +55,7 @@ async def lister_dossiers(_=Depends(exiger_role("clinicien"))) -> list[dict]:
 
 
 @routeur_clinique.get("/patients/{code_patient}")
-async def lire_chronologie(
-    code_patient: str, _=Depends(exiger_role("clinicien"))
-) -> dict:
+async def lire_chronologie(code_patient: str, _=Depends(exiger_role("clinicien"))) -> dict:
     """Chronologie clinique d'un patient : tous ses examens, du plus recent au
     plus ancien, avec verdicts et etat de validation.
 
@@ -103,9 +101,7 @@ async def lister_suivis(
 
 
 @routeur_clinique.post("/suivis")
-async def creer_suivi(
-    requete: CreerSuiviRequete, _=Depends(exiger_role("clinicien"))
-) -> dict:
+async def creer_suivi(requete: CreerSuiviRequete, _=Depends(exiger_role("clinicien"))) -> dict:
     """Programme un controle a venir pour un patient.
 
     L'examen d'origine est facultatif : un suivi peut venir de la page
@@ -178,9 +174,7 @@ async def lire_file_triage(
 
 
 @routeur_clinique.get("/recommandations/{id_examen}")
-async def lire_recommandations(
-    id_examen: int, _=Depends(exiger_role("clinicien"))
-) -> dict:
+async def lire_recommandations(id_examen: int, _=Depends(exiger_role("clinicien"))) -> dict:
     """Orientations de prise en charge pour un examen, cote clinicien.
 
     Derivees des verdicts, jamais stockees : changer de modele change le texte
@@ -216,10 +210,9 @@ async def lire_recommandations(
         ],
     }
 
+
 @routeur_clinique.post("/examens/{id_examen}/partager")
-async def partager_compte_rendu(
-    id_examen: int, _=Depends(exiger_role("clinicien"))
-) -> dict:
+async def partager_compte_rendu(id_examen: int, _=Depends(exiger_role("clinicien"))) -> dict:
     """Envoie au patient, sur WhatsApp, le resume de son compte rendu valide.
 
     Deux refus deliberes :
@@ -292,7 +285,6 @@ async def partager_compte_rendu(
         "simulation": not config.whatsapp_url_relay,
         "nb_recommandations": len(recommandations),
     }
-
 
 
 @routeur_clinique.get("/protocole")

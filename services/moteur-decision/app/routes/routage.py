@@ -313,6 +313,7 @@ def _meme_identite(patient, nom: str, prenom: str) -> bool:
     que ``nom_complet`` : on compare alors la forme concatenee, sinon tout
     re-enregistrement d'un patient historique serait refuse a tort.
     """
+
     def _normaliser(valeur: str | None) -> str:
         return " ".join((valeur or "").split()).casefold()
 

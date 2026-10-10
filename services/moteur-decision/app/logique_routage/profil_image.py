@@ -27,7 +27,6 @@ Tuberculosis-109.png est en niveaux de gris ET appartient au domaine TB.
 """
 
 import io
-from typing import Any
 
 from PIL import Image
 from pydantic import BaseModel
@@ -221,10 +220,7 @@ def appliquer_regles(
     ):
         return _regle_ecart(profil, regles)
 
-    if (
-        profil.format == regles.format_image_pn
-        and ratio >= regles.seuil_ratio_pn
-    ):
+    if profil.format == regles.format_image_pn and ratio >= regles.seuil_ratio_pn:
         return _regle_pn(profil, regles)
 
     # 5. Profil ambigu (aucune regle ne correspond) : les deux.

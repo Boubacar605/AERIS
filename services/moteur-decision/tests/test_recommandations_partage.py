@@ -22,8 +22,6 @@ import inspect
 from types import SimpleNamespace
 
 import pytest
-from fastapi.testclient import TestClient
-
 from app import persistance
 from app.recommandations import (
     CONFIANCE_MENTIONNABLE,
@@ -31,6 +29,7 @@ from app.recommandations import (
     resumer_verdicts,
 )
 from app.whatsapp import composer_message_compte_rendu
+from fastapi.testclient import TestClient
 
 TB_POSITIF = {"pathologie": "tuberculose", "prediction": "positif", "confiance": 0.88}
 PN_POSITIF = {"pathologie": "pneumonie", "prediction": "positif", "confiance": 0.94}
@@ -94,7 +93,9 @@ def test_les_deux_positivites_signalent_le_croisement():
     """TB et PN se confondent sur l'image : deux positivites appellent une
     relecture, pas deux diagnostics."""
     reco = generer_recommandations([TB_POSITIF, PN_POSITIF], valide=False)
-    croisements = [r for r in reco if "croisement" in r.texte.lower() or "relecture" in r.texte.lower()]
+    croisements = [
+        r for r in reco if "croisement" in r.texte.lower() or "relecture" in r.texte.lower()
+    ]
     assert croisements, "l'avertissement de croisement est attendu"
     assert all(r.cible == "clinicien" for r in croisements)
 
@@ -274,6 +275,7 @@ def test_partager_refuse_quand_aucun_code_actif_n_atteint_le_patient(
     recu » — vers un code que le patient n'a jamais recu, et qu'il ne peut pas
     deviner. L'echec visible vaut mieux que la promesse fausse.
     """
+
     async def _patient(id_examen: int):
         return 7
 

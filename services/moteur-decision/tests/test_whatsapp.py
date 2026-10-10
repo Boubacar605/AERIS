@@ -10,7 +10,6 @@ from __future__ import annotations
 import asyncio
 
 import pytest
-
 from app import whatsapp
 from app.config import config
 from app.notification import envoyer_notification_otp
@@ -72,17 +71,18 @@ def _capturer_posts(monkeypatch) -> list[tuple[str, dict]]:
 # Normalisation des numéros
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.parametrize(
     ("entree", "attendu"),
     [
-        ("77 123 45 67", "221771234567"),   # espace + préfixe pays
+        ("77 123 45 67", "221771234567"),  # espace + préfixe pays
         ("+221 78 123 45 67", "221781234567"),  # déjà international → inchangé
-        ("221771234567", "221771234567"),    # déjà prefixé → inchangé
+        ("221771234567", "221771234567"),  # déjà prefixé → inchangé
         ("(77) 123-45-67", "221771234567"),  # caractères non chiffrés retirés
-        ("0709313319", "221709313319"),       # indicatif national « 0 » retiré
+        ("0709313319", "221709313319"),  # indicatif national « 0 » retiré
         ("+221 70 931 33 19", "221709313319"),  # international, espaces retirés
-        ("", ""),                            # vide
-        (None, ""),                          # absent
+        ("", ""),  # vide
+        (None, ""),  # absent
     ],
 )
 def test_normalisation_numero(entree, attendu):
@@ -93,6 +93,7 @@ def test_normalisation_numero(entree, attendu):
 # ---------------------------------------------------------------------------
 # Texte du message OTP
 # ---------------------------------------------------------------------------
+
 
 def test_message_otp_contient_code_nom_url_et_permanence():
     """Le message est en français, marqué AERIS, avec tout ce qu'il faut.
@@ -124,6 +125,7 @@ def test_message_otp_sans_nom_utilise_patient():
 # Envoi via le relais
 # ---------------------------------------------------------------------------
 
+
 def test_envoi_via_relais_normalise_le_numero_et_transmet_le_message(monkeypatch):
     """Le relais reçoit le numéro normalisé et un message complet."""
     appels = _capturer_posts(monkeypatch)
@@ -131,7 +133,7 @@ def test_envoi_via_relais_normalise_le_numero_et_transmet_le_message(monkeypatch
     ok = asyncio.run(envoyer_otp_whatsapp("77 123 45 67", "123456", "Awa Diop"))
     assert ok is True
 
-    (url, corps), = appels
+    ((url, corps),) = appels
     assert url == "http://relais-test:3500/envoyer"
     assert corps["to"] == "221771234567"
     assert "123456" in corps["message"]
@@ -176,6 +178,7 @@ def test_envoi_sans_relais_configure_est_simule(monkeypatch):
 # ---------------------------------------------------------------------------
 # Choix du canal (notifications)
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture(autouse=True)
 def _relais_simule(monkeypatch):

@@ -1,10 +1,9 @@
 """Journal durable de l'historique : la base prime sur la fenetre memoire."""
 
 import pytest
-from fastapi.testclient import TestClient
-
 from app import persistance
 from app.logique_routage import registre_diagnostics
+from fastapi.testclient import TestClient
 
 
 def test_historique_prend_le_journal_durable_quand_la_base_repond(
@@ -58,6 +57,7 @@ def test_historique_replie_sur_la_fenetre_memoire_sans_base(
     admin_token: str,
 ):
     """Base indisponible -> la page reste alimentee par le registre memoire."""
+
     async def _journal(limite: int):
         return None
 

@@ -266,9 +266,7 @@ async def decider_destination(
 
     # Une cible de specialiste unique enrichit la raison de la decision.
     if len(admissibles) == 1:
-        decision.raison = (
-            f"{decision.raison} — Ciblage {admissibles[0]}, specialiste unique."
-        )
+        decision.raison = f"{decision.raison} — Ciblage {admissibles[0]}, specialiste unique."
 
     url_tb, url_pn = _obtenir_urls(destination)
     urls = {"tuberculose": url_tb, "pneumonie": url_pn}
@@ -334,9 +332,7 @@ async def decider_destination(
                 temps_escalade_ms = (time.time() - debut_escalade) * 1000
 
                 for i, primaire in enumerate(primaires):
-                    if not _entraine_escalade(
-                        primaire.confiance, config.seuil_confiance_escalade
-                    ):
+                    if not _entraine_escalade(primaire.confiance, config.seuil_confiance_escalade):
                         continue
                     controle = controles.get(primaire.pathologie)
                     if controle is None or controle.prediction == "erreur":
@@ -398,14 +394,12 @@ def _appliquer_regles(metriques: MetriquesSysteme) -> tuple[str, str]:
 
     if metriques.cpu_pourcentage > config.seuil_cpu:
         return "cloud", (
-            f"CPU Edge sature ({metriques.cpu_pourcentage}%) "
-            f"- delegation au Cloud"
+            f"CPU Edge sature ({metriques.cpu_pourcentage}%) " f"- delegation au Cloud"
         )
 
     if metriques.ram_pourcentage > config.seuil_ram:
         return "cloud", (
-            f"RAM Edge saturee ({metriques.ram_pourcentage}%) "
-            f"- delegation au Cloud"
+            f"RAM Edge saturee ({metriques.ram_pourcentage}%) " f"- delegation au Cloud"
         )
 
     return "edge", "Conditions normales - traitement local privilegie"

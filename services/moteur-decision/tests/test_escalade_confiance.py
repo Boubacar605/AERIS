@@ -32,8 +32,9 @@ class _RepondeurInference:
         )
 
 
-def _patcher_environnement(monkeypatch, cpu: float = 20.0, ram: float = 30.0,
-                           reseau_ok: bool = True, latence: float = 30.0) -> None:
+def _patcher_environnement(
+    monkeypatch, cpu: float = 20.0, ram: float = 30.0, reseau_ok: bool = True, latence: float = 30.0
+) -> None:
     """Rend l'environnement stable : metriques faibles et reseau nominal."""
 
     async def _metriques():
@@ -44,15 +45,13 @@ def _patcher_environnement(monkeypatch, cpu: float = 20.0, ram: float = 30.0,
     monkeypatch.setattr(selecteur, "mesurer_latence_cloud", AsyncMock(return_value=latence))
 
 
-async def _decider_avec(repondeur: _RepondeurInference, monkeypatch,
-                        force: str | None = None):
+async def _decider_avec(repondeur: _RepondeurInference, monkeypatch, force: str | None = None):
     """Lance decider_destination avec le repondeur injecte."""
     monkeypatch.setattr(selecteur, "_appeler_service", repondeur)
     return await selecteur.decider_destination(b"image", force)
 
 
-def _lancer_decision(repondeur: _RepondeurInference, monkeypatch,
-                     force: str | None = None):
+def _lancer_decision(repondeur: _RepondeurInference, monkeypatch, force: str | None = None):
     return asyncio.run(_decider_avec(repondeur, monkeypatch, force))
 
 
@@ -171,12 +170,16 @@ def test_deux_pathologies_ambigues_lancent_deux_controles(monkeypatch):
 def test_arbitrage_conserve_initial_quand_controle_inferieur():
     """Un second avis moins bon ne degrade pas le verdict initial."""
     primaire = ResultatDiagnostic(
-        pathologie="tuberculose", prediction="negatif",
-        confiance=0.82, source="edge",
+        pathologie="tuberculose",
+        prediction="negatif",
+        confiance=0.82,
+        source="edge",
     )
     controle = ResultatDiagnostic(
-        pathologie="tuberculose", prediction="negatif",
-        confiance=0.80, source="cloud",
+        pathologie="tuberculose",
+        prediction="negatif",
+        confiance=0.80,
+        source="cloud",
     )
     final, evenement = selecteur._arbitrer_resultats(primaire, controle, seuil_indetermine=0.60)
 
@@ -192,12 +195,16 @@ def test_cloud_ambigu_apres_escalade_marque_indetermine():
     """Ni l'Edge ni le Cloud ne sont fiables : le verdict est marque
     indetermine, jamais un verdict arbitraire."""
     primaire = ResultatDiagnostic(
-        pathologie="tuberculose", prediction="negatif",
-        confiance=0.55, source="edge",
+        pathologie="tuberculose",
+        prediction="negatif",
+        confiance=0.55,
+        source="edge",
     )
     controle = ResultatDiagnostic(
-        pathologie="tuberculose", prediction="negatif",
-        confiance=0.58, source="cloud",
+        pathologie="tuberculose",
+        prediction="negatif",
+        confiance=0.58,
+        source="cloud",
     )
     final, evenement = selecteur._arbitrer_resultats(primaire, controle, seuil_indetermine=0.60)
 
@@ -207,9 +214,11 @@ def test_cloud_ambigu_apres_escalade_marque_indetermine():
     assert final.indetermine is True
     assert evenement.decision == "arbitrage_a_prevalu"
 
+
 # ---------------------------------------------------------------------------
 # Destination forcée : le verdict doit rester sur la source imposée
 # ---------------------------------------------------------------------------
+
 
 def test_destination_forcee_edge_n_escalade_pas_vers_le_cloud(monkeypatch):
     """force_destination=edge : aucun appel Cloud, le verdict reste local.
@@ -281,9 +290,7 @@ def test_second_avis_explicite_restaure_le_controle_qualite_force(monkeypatch):
         }
     )
     monkeypatch.setattr(selecteur, "_appeler_service", repondeur)
-    reponse = asyncio.run(
-        selecteur.decider_destination(b"image", "edge", second_avis=True)
-    )
+    reponse = asyncio.run(selecteur.decider_destination(b"image", "edge", second_avis=True))
 
     assert reponse.decision.destination == "edge"
     assert reponse.decision.second_avis is True

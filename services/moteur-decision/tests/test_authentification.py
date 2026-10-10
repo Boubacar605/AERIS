@@ -5,14 +5,15 @@ from __future__ import annotations
 import types
 
 import pytest
-from fastapi.testclient import TestClient
-
 from app import persistance
 from app.authentification import hacher_mot_de_passe
+from fastapi.testclient import TestClient
 
 
 def _utilisateur(
-    id_: int = 1, role: str = "admin", email: str = "admin@aeris.local",
+    id_: int = 1,
+    role: str = "admin",
+    email: str = "admin@aeris.local",
     mot_de_passe: str | None = None,
 ) -> types.SimpleNamespace:
     return types.SimpleNamespace(
@@ -26,9 +27,7 @@ def _utilisateur(
     )
 
 
-def test_connexion_reussie_retourne_tokens(
-    client: TestClient, monkeypatch: pytest.MonkeyPatch
-):
+def test_connexion_reussie_retourne_tokens(client: TestClient, monkeypatch: pytest.MonkeyPatch):
     """Email + mot de passe corrects -> deux tokens JWT et la personne."""
 
     async def _obtenir_par_email(email: str):
@@ -48,9 +47,7 @@ def test_connexion_reussie_retourne_tokens(
     assert donnees["personne"]["email"] == "admin@aeris.local"
 
 
-def test_connexion_mauvais_mot_de_passe_refuse(
-    client: TestClient, monkeypatch: pytest.MonkeyPatch
-):
+def test_connexion_mauvais_mot_de_passe_refuse(client: TestClient, monkeypatch: pytest.MonkeyPatch):
     """Mauvais mot de passe -> 401 sans leak du motif."""
 
     async def _obtenir_par_email(email: str):
@@ -81,9 +78,7 @@ def test_connexion_email_inconnu_refuse(client: TestClient, monkeypatch: pytest.
     assert reponse.status_code == 401
 
 
-def test_connexion_compte_desactive_refuse(
-    client: TestClient, monkeypatch: pytest.MonkeyPatch
-):
+def test_connexion_compte_desactive_refuse(client: TestClient, monkeypatch: pytest.MonkeyPatch):
     """Un compte desactive ne peut plus se connecter (403)."""
 
     async def _obtenir_par_email(email: str):
@@ -115,9 +110,7 @@ def test_auth_moi_avec_token_retourne_personne(client: TestClient, admin_token: 
     assert donnees["actif"] is True
 
 
-def test_refresh_token_echange_vs_access(
-    client: TestClient, monkeypatch: pytest.MonkeyPatch
-):
+def test_refresh_token_echange_vs_access(client: TestClient, monkeypatch: pytest.MonkeyPatch):
     """Un refresh token renouvelle l'access token ; un access token ne le peut pas."""
     from app.authentification import creer_jwt
 
@@ -155,9 +148,7 @@ def test_rafraichissement_token_refuse_comme_bearer(client: TestClient):
         {"sub": "1", "role": "admin", "type": "rafraichissement"},
         ttl_minutes=7 * 24 * 60,
     )
-    reponse = client.get(
-        "/auth/moi", headers={"Authorization": f"Bearer {refresh}"}
-    )
+    reponse = client.get("/auth/moi", headers={"Authorization": f"Bearer {refresh}"})
     assert reponse.status_code == 401
     assert "Type de token invalide" in reponse.json()["detail"]
 

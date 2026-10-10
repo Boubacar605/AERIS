@@ -12,15 +12,16 @@ from __future__ import annotations
 import types
 
 import pytest
-from fastapi.testclient import TestClient
-
 from app import persistance
 from app.authentification import creer_jwt
 from app.config import config
 from app.principal import app
+from fastapi.testclient import TestClient
 
 
-def _utilisateur_factice(id_utilisateur: int, role: str, actif: bool = True) -> types.SimpleNamespace:
+def _utilisateur_factice(
+    id_utilisateur: int, role: str, actif: bool = True
+) -> types.SimpleNamespace:
     """Objet minimal mime l'ORM ``Utilisateur`` pour ``exiger_authentification``."""
     return types.SimpleNamespace(
         id_utilisateur=id_utilisateur,

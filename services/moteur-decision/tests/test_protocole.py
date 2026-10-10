@@ -18,10 +18,9 @@ PostgreSQL n'est necessaire.
 from __future__ import annotations
 
 import pytest
+from app import persistance
 from fastapi.testclient import TestClient
 
-from app import persistance
-from app.principal import app
 from tests.test_triage import _ResultatFaux, _SessionFausse
 
 # Les neuf colonnes de v_protocole_validation, dans l'ordre de la vue.

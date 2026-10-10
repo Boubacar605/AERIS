@@ -8,13 +8,12 @@ surclasse du contexte clinique.
 
 import io
 
-from PIL import Image
-
 from app.logique_routage.profil_image import (
     ReglesProfilage,
     appliquer_regles,
     construire_profil,
 )
+from PIL import Image
 
 REGLES_DEFAUT = ReglesProfilage()
 
@@ -190,7 +189,9 @@ def test_indecodable_lance_les_deux():
 def test_kill_switch_lance_les_deux():
     """profilage_active=False -> comportement historique, meme sur un profil TB."""
     profil = construire_profil(_png_rvb_carre())
-    filtrage = appliquer_regles(profil, contexte=None, regles=ReglesProfilage(profilage_active=False))
+    filtrage = appliquer_regles(
+        profil, contexte=None, regles=ReglesProfilage(profilage_active=False)
+    )
 
     assert filtrage.specialistes_admissibles == ["tuberculose", "pneumonie"]
     assert filtrage.cle_regle == "profilage_desactive"

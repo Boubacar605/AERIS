@@ -12,15 +12,15 @@ from typing import Annotated
 import httpx
 from fastapi import APIRouter, Depends, Query
 
+from app import persistance
 from app.authentification import exiger_role
 from app.config import config
+from app.logique_routage import registre_diagnostics
 from app.logique_routage.evaluateur_reseau import (
     mesurer_latence_cloud,
     verifier_connectivite_cloud,
 )
 from app.logique_routage.evaluateur_ressources import obtenir_metriques_completes
-from app import persistance
-from app.logique_routage import registre_diagnostics
 from app.logique_routage.registre_diagnostics import (
     metriques_temps_reel,
     obtenir_derniers_diagnostics,
@@ -65,22 +65,40 @@ async def obtenir_etat_systeme(
     # chaque cycle alimentent l'historique SQL de telemetrie_observations.
     persistance.enregistrer_observations_telemetrie(
         [
-            {"departement": "edge", "conteneur": "aeris-edge", "nom_mesure": "cpu_pourcentage",
-             "valeur": metriques_edge.get("cpu_pourcentage", 0.0), "unite": "%"},
-            {"departement": "edge", "conteneur": "aeris-edge", "nom_mesure": "ram_pourcentage",
-             "valeur": metriques_edge.get("ram_pourcentage", 0.0), "unite": "%"},
-            {"departement": "edge", "conteneur": "aeris-edge", "nom_mesure": "disque_pourcentage",
-             "valeur": metriques_edge.get("disque_pourcentage", 0.0), "unite": "%"},
-            {"departement": "cloud", "conteneur": "aeris-cloud", "nom_mesure": "latence_reseau_ms",
-             "valeur": latence, "unite": "ms"},
+            {
+                "departement": "edge",
+                "conteneur": "aeris-edge",
+                "nom_mesure": "cpu_pourcentage",
+                "valeur": metriques_edge.get("cpu_pourcentage", 0.0),
+                "unite": "%",
+            },
+            {
+                "departement": "edge",
+                "conteneur": "aeris-edge",
+                "nom_mesure": "ram_pourcentage",
+                "valeur": metriques_edge.get("ram_pourcentage", 0.0),
+                "unite": "%",
+            },
+            {
+                "departement": "edge",
+                "conteneur": "aeris-edge",
+                "nom_mesure": "disque_pourcentage",
+                "valeur": metriques_edge.get("disque_pourcentage", 0.0),
+                "unite": "%",
+            },
+            {
+                "departement": "cloud",
+                "conteneur": "aeris-cloud",
+                "nom_mesure": "latence_reseau_ms",
+                "valeur": latence,
+                "unite": "ms",
+            },
         ]
     )
 
     # Statistiques durables (base) pour que le tableau de bord et la page
     # « Historique » affichent le meme total ; repli sur la fenetre memoire.
-    statistiques = (
-        await persistance.statistiques_durables() or registre_diagnostics.statistiques()
-    )
+    statistiques = await persistance.statistiques_durables() or registre_diagnostics.statistiques()
 
     return {
         "edge": metriques_edge,
@@ -119,7 +137,9 @@ async def obtenir_historique(
         journal = obtenir_derniers_diagnostics(limite)
         statistiques = registre_diagnostics.statistiques()
     else:
-        statistiques = await persistance.statistiques_durables() or registre_diagnostics.statistiques()
+        statistiques = (
+            await persistance.statistiques_durables() or registre_diagnostics.statistiques()
+        )
 
     return {
         "derniers_diagnostics": journal,

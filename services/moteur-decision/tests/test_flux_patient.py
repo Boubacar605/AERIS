@@ -17,12 +17,13 @@ import datetime
 import types
 
 import pytest
+from app import persistance
 from fastapi.testclient import TestClient
 
-from app import persistance
 
-
-def _patient(code: str = "AER-2026-0042", telephone: str | None = "221771234567") -> types.SimpleNamespace:
+def _patient(
+    code: str = "AER-2026-0042", telephone: str | None = "221771234567"
+) -> types.SimpleNamespace:
     return types.SimpleNamespace(
         id_patient=42,
         code_patient=code,
@@ -35,6 +36,7 @@ def _patient(code: str = "AER-2026-0042", telephone: str | None = "221771234567"
 # ---------------------------------------------------------------------------
 # Code patient automatique (format AER-AAAA-NNNN)
 # ---------------------------------------------------------------------------
+
 
 class _SessionFake:
     def __init__(self, codes: list[str]):
@@ -82,7 +84,7 @@ class _SessionMakerFake:
 )
 def test_generer_code_patient_sequence_par_annee(monkeypatch, codes, attendu):
     """Le code auto reprend le suffixe max de l'année courante, +1."""
-    annee = datetime.datetime.now(datetime.timezone.utc).year
+    annee = datetime.datetime.now(datetime.UTC).year
     attendu = attendu.replace("2026", str(annee))
     codes = [c.replace("2026", str(annee)).replace("2025", str(annee - 1)) for c in codes]
     monkeypatch.setattr(persistance, "_sessions", _SessionMakerFake(codes))
@@ -92,6 +94,7 @@ def test_generer_code_patient_sequence_par_annee(monkeypatch, codes, attendu):
 # ---------------------------------------------------------------------------
 # POST /routage/patient — création de l'en-tête avant l'analyse
 # ---------------------------------------------------------------------------
+
 
 def test_en_tete_patient_cree_un_code_automatique(
     client: TestClient, monkeypatch: pytest.MonkeyPatch, clinicien_token: str
@@ -189,6 +192,7 @@ def test_en_tete_patient_exige_nom_et_telephone_valides(
 # ---------------------------------------------------------------------------
 # POST /admin/examens/approuver — déclenchement de la notification OTP
 # ---------------------------------------------------------------------------
+
 
 def test_approuver_examen_envoie_email_et_whatsapp(
     client: TestClient, monkeypatch: pytest.MonkeyPatch, clinicien_token: str
@@ -314,6 +318,7 @@ def test_approuver_examen_unknown_patient_404(
 # Sécurité du dédoublonnage : jamais de rattachement à un autre patient
 # ---------------------------------------------------------------------------
 
+
 def test_en_tete_patient_refuse_une_autre_identite_sur_le_meme_telephone(
     client: TestClient, monkeypatch: pytest.MonkeyPatch, clinicien_token: str
 ):
@@ -416,7 +421,9 @@ def test_en_tete_patient_409_si_contrainte_unique_tombe(
 
     async def _creer(**kwargs):
         # Forme réelle d'une violation de contrainte unique SQLAlchemy/psycopg.
-        raise IntegrityError("INSERT", {}, Exception("duplicate key value violates unique constraint"))
+        raise IntegrityError(
+            "INSERT", {}, Exception("duplicate key value violates unique constraint")
+        )
 
     monkeypatch.setattr(persistance, "rechercher_patient_par_telephone", _aucun)
     monkeypatch.setattr(persistance, "rechercher_patient_par_email", _aucun_email)
@@ -437,6 +444,7 @@ async def _aucun_email(adresse: str):
 # ---------------------------------------------------------------------------
 # Notification OTP : un canal en panne ne doit pas masquer la livraison
 # ---------------------------------------------------------------------------
+
 
 def test_approuver_examen_signale_un_envoi_partiel(
     client: TestClient, monkeypatch: pytest.MonkeyPatch, clinicien_token: str
@@ -463,8 +471,7 @@ def test_approuver_examen_signale_un_envoi_partiel(
             "canaux": {"email": True, "whatsapp": False},
             "canaux_oks": ["email"],
             "avertissements": [
-                "OTP delivre par email mais l'envoi par whatsapp a echoue "
-                "(canal indisponible)."
+                "OTP delivre par email mais l'envoi par whatsapp a echoue " "(canal indisponible)."
             ],
         }
 
@@ -533,6 +540,7 @@ def test_approuver_examen_echec_total_si_aucun_canal_naboutit(
 # GET /routage/patient — auto-remplissage par numéro déjà connu
 # ---------------------------------------------------------------------------
 
+
 def test_recherche_par_telephone_retrouve_la_fiche(
     client: TestClient, monkeypatch: pytest.MonkeyPatch, clinicien_token: str
 ):
@@ -565,6 +573,7 @@ def test_recherche_par_telephone_numero_inconnu(
     client: TestClient, monkeypatch: pytest.MonkeyPatch, clinicien_token: str
 ):
     """Numéro inconnu -> trouve=false, sans erreur (saisie en cours)."""
+
     async def _rechercher(numero: str):
         return None
 
@@ -579,9 +588,7 @@ def test_recherche_par_telephone_numero_inconnu(
     assert reponse.json()["trouve"] is False
 
 
-def test_recherche_par_telephone_saisie_incomplete(
-    client: TestClient, clinicien_token: str
-):
+def test_recherche_par_telephone_saisie_incomplete(client: TestClient, clinicien_token: str):
     """Saisie trop courte -> trouve=false, et surtout aucun appel en base."""
     reponse = client.get(
         "/routage/patient",
@@ -592,9 +599,7 @@ def test_recherche_par_telephone_saisie_incomplete(
     assert reponse.json()["trouve"] is False
 
 
-def test_recherche_par_telephone_refusee_aux_non_cliniciens(
-    client: TestClient, admin_token: str
-):
+def test_recherche_par_telephone_refusee_aux_non_cliniciens(client: TestClient, admin_token: str):
     """La recherche d'identité est réservée au clinicien."""
     reponse = client.get(
         "/routage/patient",

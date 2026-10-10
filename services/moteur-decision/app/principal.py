@@ -12,13 +12,13 @@ from app import persistance
 from app.config import config
 from app.limiteur_debit import LimiteurDebit
 from app.logique_routage import registre_diagnostics
+from app.routes.acces import routeur_acces
+from app.routes.admin import routeur_admin
+from app.routes.auth import routeur_auth
+from app.routes.clinique import routeur_clinique
 from app.routes.metriques import routeur_metriques
 from app.routes.routage import routeur_routage
 from app.routes.sante import routeur_sante
-from app.routes.auth import routeur_auth
-from app.routes.admin import routeur_admin
-from app.routes.clinique import routeur_clinique
-from app.routes.acces import routeur_acces
 
 _logger = logging.getLogger("aeris.moteur")
 
@@ -85,9 +85,7 @@ app = FastAPI(
 # du tableau de bord appelle le moteur en URL absolue : en dev l'origine est
 # localhost:8080, sous le tunnel front et API partagent le meme hote.
 _origines_cors = [
-    origine.strip()
-    for origine in config.cors_origines_autorisees.split(",")
-    if origine.strip()
+    origine.strip() for origine in config.cors_origines_autorisees.split(",") if origine.strip()
 ]
 # Le middleware ajoute en dernier est evalue en premier : le limiteur s'execute
 # donc avant CORS et avant tout traitement de route.
@@ -115,9 +113,7 @@ async def _proteger_metrics(request: Request, call_next):
     de la lecture depuis une page web, sans toucher au contrat de Prometheus
     (toujours repondu en 200). ``METRICS_PUBLIC=true`` leve la restriction.
     """
-    if request.url.path == "/metrics" and not config.metrics_public and _origin_presente(
-        request
-    ):
+    if request.url.path == "/metrics" and not config.metrics_public and _origin_presente(request):
         return JSONResponse(
             status_code=403,
             content={"detail": "Metrics non exposables depuis un navigateur"},

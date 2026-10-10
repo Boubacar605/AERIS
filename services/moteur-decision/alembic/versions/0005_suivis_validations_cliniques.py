@@ -37,9 +37,7 @@ depends_on: str | Sequence[str] | None = None
 def upgrade() -> None:
     """Cree le suivi et la validation cliniques, et rend l'OTP revocable."""
     op.execute("CREATE TYPE t_statut_suivi AS ENUM ('planifie', 'realise', 'annule')")
-    op.execute(
-        "CREATE TYPE t_statut_validation AS ENUM ('en_attente', 'approuve', 'desapprouve')"
-    )
+    op.execute("CREATE TYPE t_statut_validation AS ENUM ('en_attente', 'approuve', 'desapprouve')")
 
     op.create_table(
         "suivis_cliniques",
@@ -62,18 +60,14 @@ def upgrade() -> None:
             server_default=sa.text("now()"),
             nullable=False,
         ),
-        sa.ForeignKeyConstraint(
-            ["id_patient"], ["patients.id_patient"], ondelete="RESTRICT"
-        ),
+        sa.ForeignKeyConstraint(["id_patient"], ["patients.id_patient"], ondelete="RESTRICT"),
         sa.ForeignKeyConstraint(
             ["id_examen_origine"], ["examens_image.id_examen"], ondelete="RESTRICT"
         ),
         sa.PrimaryKeyConstraint("id_suivi"),
     )
     # Tri de la page /suivi : echeance la plus proche en tete.
-    op.execute(
-        "CREATE INDEX idx_suivis_echeance ON suivis_cliniques (date_suivi, statut)"
-    )
+    op.execute("CREATE INDEX idx_suivis_echeance ON suivis_cliniques (date_suivi, statut)")
 
     op.create_table(
         "validations_cliniques",
@@ -100,9 +94,7 @@ def upgrade() -> None:
             server_default=sa.text("now()"),
             nullable=False,
         ),
-        sa.ForeignKeyConstraint(
-            ["id_examen"], ["examens_image.id_examen"], ondelete="RESTRICT"
-        ),
+        sa.ForeignKeyConstraint(["id_examen"], ["examens_image.id_examen"], ondelete="RESTRICT"),
         # SET NULL : supprimer un compte soignant ne doit pas emporter la
         # trace de sa decision clinique.
         sa.ForeignKeyConstraint(
@@ -119,8 +111,7 @@ def upgrade() -> None:
 
     op.add_column("otp_codes", sa.Column("revoque_le", sa.TIMESTAMP(timezone=True)))
 
-    op.execute(
-        """
+    op.execute("""
         CREATE VIEW v_etat_validation AS
         SELECT DISTINCT ON (v.id_examen)
                v.id_examen,
@@ -133,8 +124,7 @@ def upgrade() -> None:
         FROM validations_cliniques v
         LEFT JOIN utilisateurs u ON u.id_utilisateur = v.id_utilisateur
         ORDER BY v.id_examen, v.id_validation DESC
-        """
-    )
+        """)
 
 
 def downgrade() -> None:

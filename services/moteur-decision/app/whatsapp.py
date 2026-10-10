@@ -117,6 +117,7 @@ async def envoyer_otp_whatsapp(
         _logger.error("Echec relay WhatsApp vers %s : %s", numero, exc)
         return False
 
+
 def composer_message_compte_rendu(
     nom_patient: str | None,
     resume: str,

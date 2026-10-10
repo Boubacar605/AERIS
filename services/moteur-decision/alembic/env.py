@@ -11,10 +11,9 @@ toute divergence entre les deux chemins.
 from logging.config import fileConfig
 
 from alembic import context
-from sqlalchemy import engine_from_config, pool
-
 from app import persistance
 from app.config import config as app_config
+from sqlalchemy import engine_from_config, pool
 
 # La classe de configuration d'Alembic (alembic.ini).
 config = context.config
@@ -59,9 +58,7 @@ def run_migrations_online() -> None:
     """
     url = _url_connexion()
     if not url:
-        raise RuntimeError(
-            "Aucune URL de connexion : DATABASE_URL absente — impossible de migrer."
-        )
+        raise RuntimeError("Aucune URL de connexion : DATABASE_URL absente — impossible de migrer.")
 
     configuration = config.get_section(config.config_ini_section) or {}
     configuration["sqlalchemy.url"] = url

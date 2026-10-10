@@ -34,9 +34,7 @@ def test_etat_systeme_inclut_decision_temps_reel(
     mock_connectivite.return_value = True
     mock_latence.return_value = 30.0
 
-    reponse = client.get(
-        "/etat-systeme", headers={"Authorization": f"Bearer {admin_token}"}
-    )
+    reponse = client.get("/etat-systeme", headers={"Authorization": f"Bearer {admin_token}"})
     assert reponse.status_code == 200
     donnees = reponse.json()
 
@@ -58,8 +56,13 @@ def test_etat_systeme_inclut_decision_temps_reel(
 @patch("app.logique_routage.evaluateur_ressources.obtenir_utilisation_ram")
 @patch("app.logique_routage.evaluateur_ressources.obtenir_utilisation_cpu")
 def test_endpoint_routage_accepte_fichier(
-    mock_cpu, mock_ram, mock_latence, mock_connectivite, mock_appel,
-    client: TestClient, clinicien_token: str,
+    mock_cpu,
+    mock_ram,
+    mock_latence,
+    mock_connectivite,
+    mock_appel,
+    client: TestClient,
+    clinicien_token: str,
 ):
     """Verifie que l'endpoint de routage accepte un fichier et retourne un resultat."""
     mock_cpu.return_value = 40.0
@@ -108,8 +111,13 @@ def _png_reel_carre() -> bytes:
 @patch("app.logique_routage.evaluateur_ressources.obtenir_utilisation_ram")
 @patch("app.logique_routage.evaluateur_ressources.obtenir_utilisation_cpu")
 def test_endpoint_profil_tb_ne_retourne_qu_un_resultat(
-    mock_cpu, mock_ram, mock_latence, mock_connectivite, mock_appel,
-    client: TestClient, clinicien_token: str,
+    mock_cpu,
+    mock_ram,
+    mock_latence,
+    mock_connectivite,
+    mock_appel,
+    client: TestClient,
+    clinicien_token: str,
 ):
     """PNG reel : 1 seul resultat (tuberculose), profil expose dans la reponse."""
     mock_cpu.return_value = 40.0
@@ -145,8 +153,13 @@ def test_endpoint_profil_tb_ne_retourne_qu_un_resultat(
 @patch("app.logique_routage.evaluateur_ressources.obtenir_utilisation_ram")
 @patch("app.logique_routage.evaluateur_ressources.obtenir_utilisation_cpu")
 def test_endpoint_contexte_pneumonie_surclasse_le_profil(
-    mock_cpu, mock_ram, mock_latence, mock_connectivite, mock_appel,
-    client: TestClient, clinicien_token: str,
+    mock_cpu,
+    mock_ram,
+    mock_latence,
+    mock_connectivite,
+    mock_appel,
+    client: TestClient,
+    clinicien_token: str,
 ):
     """Contexte pneumonie via Form sur un PNG carre : seul PN est sollicite."""
     mock_cpu.return_value = 40.0

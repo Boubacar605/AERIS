@@ -69,8 +69,7 @@ class EvenementEscalade(BaseModel):
     confiance_controle: float = Field(description="Confiance du second avis")
     decision: str = Field(
         description=(
-            "'arbitrage_a_prevalu', 'arbitrage_conserve_initial' ou "
-            "'escalade_impossible'"
+            "'arbitrage_a_prevalu', 'arbitrage_conserve_initial' ou " "'escalade_impossible'"
         )
     )
     raison: str = Field(description="Justification de la decision d'escalade")
@@ -88,9 +87,7 @@ class ProfilImage(BaseModel):
     format: str | None = Field(default=None, description="Format detecte (PNG, JPEG)")
     largeur_px: int | None = Field(default=None, description="Largeur en pixels")
     hauteur_px: int | None = Field(default=None, description="Hauteur en pixels")
-    ratio_largeur_hauteur: float | None = Field(
-        default=None, description="Ratio largeur/hauteur"
-    )
+    ratio_largeur_hauteur: float | None = Field(default=None, description="Ratio largeur/hauteur")
     mode_canaux: str | None = Field(default=None, description="Mode couleur (RGB, L...)")
     taille_octets: int = Field(default=0, description="Taille du fichier en octets")
     indecodable: bool = Field(default=False, description="True si l'image n'a pas pu etre decodee")
@@ -109,9 +106,7 @@ class FiltrageSpecialistes(BaseModel):
     )
     regle_appliquee: str = Field(description="Libelle lisible de la regle de triage")
     cle_regle: str = Field(description="Cle stable de la regle appliquee")
-    specialiste_ecarte: str | None = Field(
-        default=None, description="Pathologie non sollicitee"
-    )
+    specialiste_ecarte: str | None = Field(default=None, description="Pathologie non sollicitee")
     raison: str = Field(description="Justification complete du triage")
 
 

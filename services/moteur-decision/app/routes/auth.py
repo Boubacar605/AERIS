@@ -49,7 +49,11 @@ async def connecter(requete: ConnexionRequete) -> ConnexionReponse:
         {"sub": str(utilisateur.id_utilisateur), "role": utilisateur.role, "type": "acces"},
     )
     rafraichissement = creer_jwt(
-        {"sub": str(utilisateur.id_utilisateur), "role": utilisateur.role, "type": "rafraichissement"},
+        {
+            "sub": str(utilisateur.id_utilisateur),
+            "role": utilisateur.role,
+            "type": "rafraichissement",
+        },
         ttl_minutes=7 * 24 * 60,  # 7 jours
     )
 

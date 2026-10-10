@@ -5,33 +5,25 @@ from fastapi.testclient import TestClient
 
 def test_clinicien_refuse_etat_systeme(client: TestClient, clinicien_token: str):
     """Le clinicien n'a pas acces au monitoring systeme (admin uniquement)."""
-    reponse = client.get(
-        "/etat-systeme", headers={"Authorization": f"Bearer {clinicien_token}"}
-    )
+    reponse = client.get("/etat-systeme", headers={"Authorization": f"Bearer {clinicien_token}"})
     assert reponse.status_code == 403
 
 
 def test_admin_accede_etat_systeme(client: TestClient, admin_token: str):
     """L'admin consulte le monitoring systeme."""
-    reponse = client.get(
-        "/etat-systeme", headers={"Authorization": f"Bearer {admin_token}"}
-    )
+    reponse = client.get("/etat-systeme", headers={"Authorization": f"Bearer {admin_token}"})
     assert reponse.status_code == 200
 
 
 def test_clinicien_refuse_sante_services(client: TestClient, clinicien_token: str):
     """La sante des services IA est reservee a l'admin."""
-    reponse = client.get(
-        "/sante-services", headers={"Authorization": f"Bearer {clinicien_token}"}
-    )
+    reponse = client.get("/sante-services", headers={"Authorization": f"Bearer {clinicien_token}"})
     assert reponse.status_code == 403
 
 
 def test_admin_accede_sante_services(client: TestClient, admin_token: str):
     """L'admin interroge la sante des services IA."""
-    reponse = client.get(
-        "/sante-services", headers={"Authorization": f"Bearer {admin_token}"}
-    )
+    reponse = client.get("/sante-services", headers={"Authorization": f"Bearer {admin_token}"})
     assert reponse.status_code == 200
 
 
@@ -43,9 +35,7 @@ def test_sans_token_refuse(client: TestClient):
 
 def test_token_invalide_refuse(client: TestClient):
     """Token mal forme -> 401."""
-    reponse = client.get(
-        "/etat-systeme", headers={"Authorization": "Bearer token.invalide.xyz"}
-    )
+    reponse = client.get("/etat-systeme", headers={"Authorization": "Bearer token.invalide.xyz"})
     assert reponse.status_code == 401
 
 
@@ -54,9 +44,7 @@ def test_historique_accessible_admin_et_clinicien(
 ):
     """L'historique est partage entre admin (audit) et clinicien (pratique)."""
     for token in (admin_token, clinicien_token):
-        reponse = client.get(
-            "/historique", headers={"Authorization": f"Bearer {token}"}
-        )
+        reponse = client.get("/historique", headers={"Authorization": f"Bearer {token}"})
         assert reponse.status_code == 200, f"historique refuse pour {token[:10]}"
 
 
@@ -76,9 +64,7 @@ def test_routes_admin_reservees_au_role_admin(
     assert isinstance(reponse_admin.json(), list)
 
 
-def test_route_analyser_reservee_aux_cliniciens(
-    client: TestClient, admin_token: str
-):
+def test_route_analyser_reservee_aux_cliniciens(client: TestClient, admin_token: str):
     """Le role admin est purement IT : il n'analyse pas de radiographies."""
     reponse = client.post(
         "/routage/analyser",

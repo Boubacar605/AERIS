@@ -61,6 +61,7 @@ class ConfigMoteurDecision(BaseSettings):
         if not nettoyee or nettoyee == "*":
             return CORS_ORIGINES_DEFAUT
         return nettoyee
+
     # Plafonds par minute des surfaces d'authentification (anti-bourrage).
     # 0 desactive le limiteur sur la route concernee. /routage/analyser n'est
     # jamais bornee : les scenarios d'experimentation la saturent a dessein.

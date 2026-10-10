@@ -14,14 +14,12 @@ Trois exigences y sont verifiees, et chacune merite son test :
 from __future__ import annotations
 
 import asyncio
-import types
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta
 
 import pytest
+from app import persistance
 from fastapi.testclient import TestClient
 from sqlalchemy.exc import SQLAlchemyError
-
-from app import persistance
 
 # Champs techniques reserves a l'admin / a la recherche. Aucun ne doit
 # apparaitre dans la synthese du poste, a aucun niveau de la reponse.
@@ -41,7 +39,7 @@ CHAMPS_INTERDITS = (
 
 
 def _maintenant() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def _parcours_cle(objet, chemin: str = "") -> list[tuple[str, object]]:
@@ -316,7 +314,9 @@ def test_aucun_champ_technique_ne_peut_apparaitre(monkeypatch: pytest.MonkeyPatc
     for chemin, cle in _parcours_cle(synthese):
         normalise = str(cle).lower()
         for interdit in CHAMPS_INTERDITS:
-            assert interdit not in normalise, f"champ technique « {chemin} » dans la synthese du poste"
+            assert (
+                interdit not in normalise
+            ), f"champ technique « {chemin} » dans la synthese du poste"
 
 
 def test_les_verdicts_ported_par_le_dernier_diagnostic_separes(
@@ -357,7 +357,9 @@ def test_les_verdicts_ported_par_le_dernier_diagnostic_separes(
 
 def test_une_base_vide_renvoie_des_zero_honnetes(monkeypatch: pytest.MonkeyPatch):
     """Aucun examen ne veut dire zero, pas une exception, et pas de taux."""
-    brancher_poste(monkeypatch, file=[], activite=[], compteurs=(0, 0, 0), echeances=[], protocole={})
+    brancher_poste(
+        monkeypatch, file=[], activite=[], compteurs=(0, 0, 0), echeances=[], protocole={}
+    )
 
     synthese = asyncio.run(persistance.synthese_poste())
 
@@ -383,9 +385,7 @@ def test_sans_session_le_code_leve_et_la_route_renvoie_503(
     monkeypatch.setattr(persistance, "_sessions", None)
     monkeypatch.setattr(persistance, "active", lambda: True)
 
-    reponse = client.get(
-        "/poste/synthese", headers={"Authorization": f"Bearer {clinicien_token}"}
-    )
+    reponse = client.get("/poste/synthese", headers={"Authorization": f"Bearer {clinicien_token}"})
     assert reponse.status_code == 503
     assert "detail" in reponse.json()
 
@@ -400,9 +400,7 @@ def test_echec_sql_renvoie_503_et_pas_500(
 
     monkeypatch.setattr(persistance, "synthese_poste", _crasher)
 
-    reponse = client.get(
-        "/poste/synthese", headers={"Authorization": f"Bearer {clinicien_token}"}
-    )
+    reponse = client.get("/poste/synthese", headers={"Authorization": f"Bearer {clinicien_token}"})
     assert reponse.status_code == 503
 
 
@@ -440,7 +438,7 @@ def test_les_deux_series_partagent_le_meme_axe(monkeypatch: pytest.MonkeyPatch):
     n'aurait aucun sens. Une decision sans examen correspondant ferait croire a
     une file qui se vide d'un coup.
     """
-    sessions = brancher_poste(
+    brancher_poste(
         monkeypatch,
         file=[_ligne_file(1, 0, "approuve")],
         activite=[(date(2026, 9, 26), 3), (date(2026, 9, 27), 1)],
@@ -475,7 +473,7 @@ def test_un_jour_sans_decision_reste_absent_de_la_serie(
     lieu, et l'aire du graphique relierait deux jours reels par un creux
     fabrique.
     """
-    sessions = brancher_poste(
+    brancher_poste(
         monkeypatch,
         file=[_ligne_file(1, 0, "approuve")],
         activite=[(date(2026, 9, 26), 2), (date(2026, 9, 28), 1)],

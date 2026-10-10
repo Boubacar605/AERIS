@@ -7,7 +7,7 @@ Fournit :
 """
 
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import jwt
 from fastapi import Depends, Header, HTTPException
@@ -38,9 +38,10 @@ def verifier_mot_de_passe(mot: str, hash_attendu: str) -> bool:
 # JWT
 # ---------------------------------------------------------------------------
 
+
 def creer_jwt(payload: dict, ttl_minutes: int | None = None) -> str:
     """Cree un token JWT signe avec le secret de la config."""
-    maintenant = datetime.now(timezone.utc)
+    maintenant = datetime.now(UTC)
     duree = timedelta(minutes=ttl_minutes or config.jwt_ttl_acces_minutes)
     corps = {
         **payload,

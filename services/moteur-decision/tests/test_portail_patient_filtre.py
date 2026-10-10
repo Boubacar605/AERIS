@@ -20,7 +20,6 @@ import asyncio
 import re
 
 import pytest
-
 from app import persistance
 
 

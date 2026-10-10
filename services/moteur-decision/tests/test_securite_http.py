@@ -8,10 +8,9 @@ et la non-limitation de /routage/analyser.
 from __future__ import annotations
 
 import pytest
-from fastapi.testclient import TestClient
-
 from app import limiteur_debit
 from app.config import config
+from fastapi.testclient import TestClient
 
 
 @pytest.fixture(autouse=True)
@@ -25,9 +24,7 @@ def test_connexion_limitee_apres_plafond(client: TestClient) -> None:
     plafond = config.limite_connexion_par_minute
     corps = {"email": "admin@aeris.local", "mot_de_passe": "Mauvais"}
 
-    statuts = [
-        client.post("/auth/connexion", json=corps).status_code for _ in range(plafond + 3)
-    ]
+    statuts = [client.post("/auth/connexion", json=corps).status_code for _ in range(plafond + 3)]
 
     # Les premiers appels ne sont pas limites (401 attendu), le dernier l'est.
     assert statuts[-1] == 429
@@ -59,15 +56,11 @@ def test_acces_resultat_limite_par_adresse(
         client.post("/acces-resultat", json=corps, headers={"X-Forwarded-For": "10.0.0.1"})
 
     # La meme adresse est desormais bloquee...
-    bloque = client.post(
-        "/acces-resultat", json=corps, headers={"X-Forwarded-For": "10.0.0.1"}
-    )
+    bloque = client.post("/acces-resultat", json=corps, headers={"X-Forwarded-For": "10.0.0.1"})
     assert bloque.status_code == 429
 
     # ...mais une autre adresse garde son quota.
-    autre = client.post(
-        "/acces-resultat", json=corps, headers={"X-Forwarded-For": "10.0.0.2"}
-    )
+    autre = client.post("/acces-resultat", json=corps, headers={"X-Forwarded-For": "10.0.0.2"})
     assert autre.status_code != 429
 
 

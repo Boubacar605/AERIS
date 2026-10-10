@@ -17,13 +17,12 @@ from __future__ import annotations
 
 import asyncio
 import types
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 
 import pytest
-from fastapi.testclient import TestClient
-
 from app import persistance
 from app.otp import generer_otp
+from fastapi.testclient import TestClient
 
 
 async def _liste_vide(*args, **kwargs):
@@ -358,9 +357,7 @@ def test_changer_statut_suivi_ferme_le_suivi(
     assert capture == {"id_suivi": 11, "statut": "realise"}
 
 
-def test_changer_statut_suivi_rejette_un_statut_inconnu(
-    client: TestClient, clinicien_token: str
-):
+def test_changer_statut_suivi_rejette_un_statut_inconnu(client: TestClient, clinicien_token: str):
     """Un statut hors enum est refuse avant d'atteindre la base."""
     reponse = client.patch(
         "/suivis/11",
@@ -437,7 +434,7 @@ class _SessionEcriture:
         # La cle primaire est attribuee par la base : on la simule, sans quoi
         # le retour serait None et le test ne testerait rien.
         entite.id_suivi = 77
-        entite.cree_le = datetime(2026, 9, 28, 8, 30, tzinfo=timezone.utc)
+        entite.cree_le = datetime(2026, 9, 28, 8, 30, tzinfo=UTC)
         self.ajoutes.append(entite)
 
     async def flush(self):
@@ -486,9 +483,7 @@ def test_creer_suivi_sans_motif_ne_laisse_pas_un_champ_phantom(
     session = _SessionEcriture()
     monkeypatch.setattr(persistance, "_sessions", lambda: session)
 
-    cree = asyncio.run(
-        persistance.creer_suivi(id_patient=42, date_suivi=date(2099, 10, 1))
-    )
+    cree = asyncio.run(persistance.creer_suivi(id_patient=42, date_suivi=date(2099, 10, 1)))
 
     assert "motif" in cree
     assert cree["motif"] is None

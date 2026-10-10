@@ -41,8 +41,7 @@ depends_on: str | Sequence[str] | None = None
 
 def upgrade() -> None:
     """Cree la vue d'agregats du protocole de validation."""
-    op.execute(
-        """
+    op.execute("""
         CREATE OR REPLACE VIEW v_protocole_validation AS
         SELECT
             (SELECT COUNT(DISTINCT d.id_examen)
@@ -68,16 +67,13 @@ def upgrade() -> None:
             (SELECT COALESCE(ROUND(AVG(EXTRACT(EPOCH FROM (v.cree_le - d.execute_le)) / 3600), 1), 0)
                FROM validations_cliniques v
                JOIN diagnostics d ON d.id_examen = v.id_examen) AS delai_moyen_heures
-        """
-    )
-    op.execute(
-        """
+        """)
+    op.execute("""
         COMMENT ON VIEW v_protocole_validation IS
             'Agregats de la Vague 2 : volumetrie de la file, decisions, '
             'revocations, controles a venir et delai moyen de validation en '
             'heures (moyenne, pas mediane).'
-        """
-    )
+        """)
 
 
 def downgrade() -> None:

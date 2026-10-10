@@ -18,12 +18,11 @@ base PostgreSQL n'est necessaire.
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
-from fastapi.testclient import TestClient
-
 from app import persistance
+from fastapi.testclient import TestClient
 
 
 def _maintenant() -> datetime:
@@ -35,7 +34,7 @@ def _maintenant() -> datetime:
     comptait un jour d'attente et déclenchait une alerte. Les dates sont donc
     toujours exprimes relatives a maintenant, qui est ce que dit le test.
     """
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 class _ResultatFaux:
@@ -210,9 +209,7 @@ def test_la_priorite_est_l_examen_le_plus_ancien(base_factice, monkeypatch: pyte
     assert [e["id_examen"] for e in file["examens"]] == [2, 3, 1]
 
 
-def test_alerte_derivee_du_delai_sans_ecriture(
-    base_factice, monkeypatch: pytest.MonkeyPatch
-):
+def test_alerte_derivee_du_delai_sans_ecriture(base_factice, monkeypatch: pytest.MonkeyPatch):
     """L'alerte est calculee a la lecture, jamais stockee : changer de seuil
     ne laisse aucune trace en base, et rien n'est ecrit par une consultation."""
     ecritures: list = []
@@ -245,7 +242,7 @@ def test_un_examen_de_la_journee_ne_declenche_pas_d_alerte(
     base_factice, monkeypatch: pytest.MonkeyPatch
 ):
     """Moins de 24 h = 0 jour d'attente : le poste ne doit pas crier au
-   beginning de chaque matin pour un examen rendu dans la nuit."""
+    beginning de chaque matin pour un examen rendu dans la nuit."""
 
     async def _etat(id_examen: int):
         return {"statut": "sans_decision"}
@@ -288,22 +285,16 @@ def test_triage_reserve_au_clinicien(
 
     monkeypatch.setattr(persistance, "lister_file_triage", _file)
 
-    forbidden = client.get(
-        "/triage", headers={"Authorization": f"Bearer {admin_token}"}
-    )
+    forbidden = client.get("/triage", headers={"Authorization": f"Bearer {admin_token}"})
     assert forbidden.status_code == 403
 
-    autorise = client.get(
-        "/triage", headers={"Authorization": f"Bearer {clinicien_token}"}
-    )
+    autorise = client.get("/triage", headers={"Authorization": f"Bearer {clinicien_token}"})
     assert autorise.status_code == 200
     assert autorise.json()["examens"] == []
 
 
 @pytest.mark.parametrize("seuil", [-1, 61, "beaucoup"])
-def test_seuil_d_alerte_hors_bornes(
-    client: TestClient, clinicien_token: str, seuil
-):
+def test_seuil_d_alerte_hors_bornes(client: TestClient, clinicien_token: str, seuil):
     """Un seuil hors bornes est refuse par le schema, pas interprete."""
     reponse = client.get(
         f"/triage?seuil_alerte_jours={seuil}",

@@ -77,7 +77,9 @@ def upgrade() -> None:
         sa.Column("expire_le", sa.DateTime(timezone=True), nullable=False),
         sa.Column("tentatives", sa.Integer(), nullable=False, server_default=sa.text("0")),
         sa.Column("utilise_le", sa.DateTime(timezone=True), nullable=True),
-        sa.Column("cree_le", sa.DateTime(timezone=True), nullable=False, server_default=sa.text("now()")),
+        sa.Column(
+            "cree_le", sa.DateTime(timezone=True), nullable=False, server_default=sa.text("now()")
+        ),
     )
     # Consultation des OTP par email (le chemin de vérification le plus fréquent).
     op.create_index("idx_otp_email", "otp_codes", ["email_destination"])
@@ -95,6 +97,4 @@ def downgrade() -> None:
     op.drop_column("patients", "nom_complet")
     op.drop_column("patients", "email")
 
-    sa.Enum("admin", "clinicien", name="t_role").drop(
-        op.get_bind(), checkfirst=True
-    )
+    sa.Enum("admin", "clinicien", name="t_role").drop(op.get_bind(), checkfirst=True)

@@ -4,7 +4,6 @@ from unittest import mock
 
 import httpx
 import pytest
-
 from app.logique_routage import evaluateur_reseau
 
 

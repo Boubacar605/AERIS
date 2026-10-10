@@ -24,6 +24,7 @@ _logger = logging.getLogger("aeris.admin")
 # Utilisateurs
 # ---------------------------------------------------------------------------
 
+
 class CreerUtilisateurRequete(BaseModel):
     email: str
     nom: str
@@ -98,6 +99,7 @@ async def modifier_utilisateur(
 # Patients
 # ---------------------------------------------------------------------------
 
+
 class CreerPatientRequete(BaseModel):
     """Patient cree en admin : le code AER-AAAA-NNNN est genere automatiquement
     s'il n'est pas fourni (flux patient automatique), et le numero de telephone
@@ -149,10 +151,7 @@ async def creer_patient(
         if existant is not None:
             raise HTTPException(
                 status_code=409,
-                detail=(
-                    f"Patient deja enregistre avec ce telephone "
-                    f"({existant.code_patient})"
-                ),
+                detail=(f"Patient deja enregistre avec ce telephone " f"({existant.code_patient})"),
             )
     else:
         numero = None
