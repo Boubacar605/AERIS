@@ -15,6 +15,7 @@ Cloud (modele complet, DenseNet121 transfer learning) :
 
 import io
 import logging
+import math
 import time
 
 import numpy as np
@@ -31,6 +32,20 @@ SPECS = {
     "edge": {"taille": 96, "canaux": "RGB", "normalisation": "rescale"},
     "cloud": {"taille": 320, "canaux": "RGB", "normalisation": "samplewise"},
 }
+
+# Calibration du modele Edge v3, estimee hors ligne sur le hold-out deduplique
+# (kernels/kaggle/tb-edge-v3, metrics_tb_edge_v3.json) : temperature minimisant
+# la NLL sur P(tuberculose). Le plafond est partage avec le tableau de bord
+# (src/lib/format.ts) : au-dela, l'affichage dit « plus de 99 % ».
+TEMPERATURE_EDGE = 0.7009
+SEUIL_SATURATION = 0.995
+
+
+def _calibrer_probabilite(proba: float, temperature: float) -> float:
+    """Temperature scaling binaire sur P(tuberculose), avant plafond."""
+    p = min(max(proba, 1e-6), 1.0 - 1e-6)
+    logit = math.log(p / (1.0 - p))
+    return 1.0 / (1.0 + math.exp(-logit / temperature))
 
 
 def charger_modele() -> None:
@@ -70,17 +85,22 @@ def preprocesser_image(contenu_image: bytes) -> np.ndarray:
 
 
 def interpreter_prediction(prediction: np.ndarray) -> tuple[bool, float]:
-    """Interprete la sortie du modele selon le mode."""
+    """Interprete la sortie du modele selon le mode.
+
+    Edge (v3) : softmax a deux colonnes, colonne 1 = P(tuberculose), calibree
+    par temperature. Cloud : sigmoid unique, 1 = tuberculose. La confiance du
+    verdict est plafonnee a `SEUIL_SATURATION` : l'API ne renvoie plus jamais 1,0.
+    """
     if config.mode_deploiement == "edge":
-        indice = int(np.argmax(prediction[0]))
-        confiance = float(prediction[0][indice])
-        est_tuberculose = indice == 1
+        proba_tb = _calibrer_probabilite(float(prediction[0][1]), TEMPERATURE_EDGE)
+        est_tuberculose = proba_tb >= 0.5
+        confiance = proba_tb if est_tuberculose else (1.0 - proba_tb)
     else:
         score = float(prediction[0][0])
         est_tuberculose = score >= 0.5
         confiance = score if est_tuberculose else (1.0 - score)
 
-    return est_tuberculose, round(confiance, 4)
+    return est_tuberculose, round(min(confiance, SEUIL_SATURATION), 6)
 
 
 async def effectuer_inference(contenu_image: bytes) -> ReponseDiagnostic:

@@ -2,10 +2,10 @@
 
 Supporte deux modes de deploiement :
 
-Edge (modele leger, CNN simple) :
+Edge (modele leger, CNN simple, v3) :
 - Entree : 150x150 pixels, 1 canal (niveaux de gris), normalisee [0, 1]
-- Sortie : sigmoid 1 neurone (PNEUMONIA=0, NORMAL=1)
-- Source : madz2000, dataset Chest X-Ray Images (Kermany)
+- Sortie : sigmoid 1 neurone (P(PNEUMONIA)=1)
+- Source : AERIS v3, dataset Chest X-Ray Images (Kermany)
 
 Cloud (modele complet, DenseNet121 transfer learning) :
 - Entree : 320x320 pixels, 3 canaux (RGB), samplewise normalization
@@ -15,6 +15,7 @@ Cloud (modele complet, DenseNet121 transfer learning) :
 
 import io
 import logging
+import math
 import time
 
 import numpy as np
@@ -31,6 +32,20 @@ SPECS = {
     "edge": {"taille": 150, "canaux": "L", "normalisation": "rescale"},
     "cloud": {"taille": 320, "canaux": "RGB", "normalisation": "samplewise"},
 }
+
+# Calibration du modele Edge v3, estimee hors ligne sur le hold-out deduplique
+# (kernels/kaggle/pn-edge-v3, metrics_pn_edge_v3.json) : temperature minimisant
+# la NLL. Le plafond est partage avec le tableau de bord (src/lib/format.ts) :
+# au-dela, l'affichage dit « plus de 99 % », jamais « 100 % ».
+TEMPERATURE_EDGE = 0.7748
+SEUIL_SATURATION = 0.995
+
+
+def _calibrer_probabilite(proba: float, temperature: float) -> float:
+    """Temperature scaling binaire (sigmoidule logit/T), avant plafond."""
+    p = min(max(proba, 1e-6), 1.0 - 1e-6)
+    logit = math.log(p / (1.0 - p))
+    return 1.0 / (1.0 + math.exp(-logit / temperature))
 
 
 def charger_modele() -> None:
@@ -76,21 +91,21 @@ def preprocesser_image(contenu_image: bytes) -> np.ndarray:
 
 
 def interpreter_prediction(prediction: np.ndarray) -> tuple[bool, float]:
-    """Interprete la sortie du modele selon le mode.
+    """Interprete la sortie du modele (sigmoid, P(PNEUMONIA)).
 
-    Edge : sigmoid ou score < 0.5 = PNEUMONIA, >= 0.5 = NORMAL
-    Cloud : sigmoid ou score >= 0.5 = PNEUMONIA, < 0.5 = NORMAL
+    Edge (v3) et Cloud : score >= 0.5 = PNEUMONIA, < 0.5 = NORMAL. Le modele
+    Edge v3 est d'abord calibre (temperature), puis la confiance du verdict est
+    plafonnee a `SEUIL_SATURATION` : l'API ne renvoie plus jamais 1,0.
     """
     score = float(prediction[0][0])
 
     if config.mode_deploiement == "edge":
-        est_pneumonie = score < 0.5
-        confiance = (1.0 - score) if est_pneumonie else score
-    else:
-        est_pneumonie = score >= 0.5
-        confiance = score if est_pneumonie else (1.0 - score)
+        score = _calibrer_probabilite(score, TEMPERATURE_EDGE)
 
-    return est_pneumonie, round(confiance, 4)
+    est_pneumonie = score >= 0.5
+    confiance = score if est_pneumonie else (1.0 - score)
+
+    return est_pneumonie, round(min(confiance, SEUIL_SATURATION), 6)
 
 
 async def effectuer_inference(contenu_image: bytes) -> ReponseDiagnostic:
