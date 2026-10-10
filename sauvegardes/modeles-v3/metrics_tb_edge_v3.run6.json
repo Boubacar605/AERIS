@@ -1,0 +1,98 @@
+{
+  "hold-out": {
+    "taille": 420,
+    "positifs": 70,
+    "deduplique_sha256": true,
+    "fuite_inter_lots": 0,
+    "construction": "split par regroupement de contenu SHA-256, 80/10/10 par classe"
+  },
+  "v1": {
+    "modele": "v1 (en service)",
+    "polarite": "softmax colonne 1",
+    "auc": 0.7497959183673468,
+    "brier": 0.19723623824279118,
+    "nll": 0.590446608265596,
+    "saturation_float32": 0,
+    "affichait_100_pourcent": 0,
+    "temperature": 1.0247442802107076,
+    "temperature_statut": "estimable",
+    "point_rappel_090": {
+      "seuil": 0.3079496920108795,
+      "rappel": 0.9,
+      "precision": 0.2135593220338983,
+      "specificite": 0.33714285714285713,
+      "VP": 63,
+      "FP": 232,
+      "FN": 7
+    },
+    "calibration": {
+      "temperature": 1.0247442802107076,
+      "temperature_statut": "estimable",
+      "plafond": 0.995,
+      "proba_max": 0.9714687161847972,
+      "brier": 0.19751361921748617,
+      "nll": 0.5904001763370696,
+      "point_rappel_090": {
+        "seuil": 0.312132161480632,
+        "rappel": 0.9,
+        "precision": 0.2135593220338983,
+        "specificite": 0.33714285714285713,
+        "VP": 63,
+        "FP": 232,
+        "FN": 7
+      },
+      "affichait_100_pourcent": 0
+    }
+  },
+  "v3": {
+    "modele": "v3",
+    "polarite": "sortie du modele",
+    "auc": 0.9997551020408163,
+    "brier": 0.005308363665911745,
+    "nll": 0.02682324385370857,
+    "saturation_float32": 28,
+    "affichait_100_pourcent": 34,
+    "temperature": 0.507767313676029,
+    "temperature_statut": "estimable",
+    "point_rappel_090": {
+      "seuil": 0.925623893737793,
+      "rappel": 0.9,
+      "precision": 1.0,
+      "specificite": 1.0,
+      "VP": 63,
+      "FP": 0,
+      "FN": 7
+    },
+    "calibration": {
+      "temperature": 0.507767313676029,
+      "temperature_statut": "estimable",
+      "plafond": 0.995,
+      "proba_max": 0.995,
+      "brier": 0.0051237741943916506,
+      "nll": 0.01603925643231971,
+      "point_rappel_090": {
+        "seuil": 0.9930740421385492,
+        "rappel": 0.9,
+        "precision": 1.0,
+        "specificite": 1.0,
+        "VP": 63,
+        "FP": 0,
+        "FN": 7
+      },
+      "affichait_100_pourcent": 0
+    }
+  },
+  "v3_details": {
+    "architecture": "identique a v1",
+    "parametres": 1661186,
+    "epochs_effectifs": 60,
+    "nb_entrainement": 3357,
+    "nb_validation": 420
+  },
+  "remplacements": {
+    "auc": true,
+    "brier": true,
+    "nll": true,
+    "point_090_binaire": true
+  }
+}

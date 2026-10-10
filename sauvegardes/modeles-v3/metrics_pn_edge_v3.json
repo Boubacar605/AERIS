@@ -1,0 +1,98 @@
+{
+  "hold-out": {
+    "taille": 583,
+    "positifs": 425,
+    "deduplique_sha256": true,
+    "fuite_inter_lots": 0,
+    "construction": "split par regroupement de contenu SHA-256, 80/10/10 par classe"
+  },
+  "v1": {
+    "modele": "v1 (en service)",
+    "polarite": "sortie unique inversee (convention service : P(NORMAL))",
+    "auc": 0.9864780342516755,
+    "brier": 0.07642835227579303,
+    "nll": 0.26776736142807217,
+    "saturation_float32": 88,
+    "affichait_100_pourcent": 214,
+    "temperature": 1.7873462784305376,
+    "temperature_statut": "estimable",
+    "point_rappel_090": {
+      "seuil": 0.3442162275314331,
+      "rappel": 0.9011764705882352,
+      "precision": 0.982051282051282,
+      "specificite": 0.9556962025316456,
+      "VP": 383,
+      "FP": 7,
+      "FN": 42
+    },
+    "calibration": {
+      "temperature": 1.7873462784305376,
+      "temperature_statut": "estimable",
+      "plafond": 0.995,
+      "proba_max": 0.995,
+      "brier": 0.07197304774019449,
+      "nll": 0.23145702625144468,
+      "point_rappel_090": {
+        "seuil": 0.41080836893572914,
+        "rappel": 0.9011764705882352,
+        "precision": 0.982051282051282,
+        "specificite": 0.9556962025316456,
+        "VP": 383,
+        "FP": 7,
+        "FN": 42
+      },
+      "affichait_100_pourcent": 0
+    }
+  },
+  "v3": {
+    "modele": "v3",
+    "polarite": "sortie du modele",
+    "auc": 0.9773641102010424,
+    "brier": 0.05149594707561492,
+    "nll": 0.18074047374425914,
+    "saturation_float32": 0,
+    "affichait_100_pourcent": 139,
+    "temperature": 0.7748338619018319,
+    "temperature_statut": "estimable",
+    "point_rappel_090": {
+      "seuil": 0.8437172174453735,
+      "rappel": 0.9011764705882352,
+      "precision": 0.9845758354755784,
+      "specificite": 0.9620253164556962,
+      "VP": 383,
+      "FP": 6,
+      "FN": 42
+    },
+    "calibration": {
+      "temperature": 0.7748338619018319,
+      "temperature_statut": "estimable",
+      "plafond": 0.995,
+      "proba_max": 0.995,
+      "brier": 0.05021353029600787,
+      "nll": 0.1749666153205976,
+      "point_rappel_090": {
+        "seuil": 0.89808671532805,
+        "rappel": 0.9011764705882352,
+        "precision": 0.9845758354755784,
+        "specificite": 0.9620253164556962,
+        "VP": 383,
+        "FP": 6,
+        "FN": 42
+      },
+      "affichait_100_pourcent": 0
+    }
+  },
+  "v3_details": {
+    "architecture": "identique a v1",
+    "parametres": 1246401,
+    "epochs_effectifs": 60,
+    "nb_entrainement": 4658,
+    "nb_validation": 583
+  },
+  "remplacements": {
+    "auc": false,
+    "brier": true,
+    "nll": true,
+    "point_090_binaire": true
+  }
+}
