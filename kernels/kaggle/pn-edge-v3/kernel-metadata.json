@@ -1,0 +1,18 @@
+{
+  "id": "boubaniang/aeris-pn-edge-v3",
+  "title": "aeris-pn-edge-v3",
+  "code_file": "pn-edge-v3.ipynb",
+  "language": "python",
+  "kernel_type": "notebook",
+  "is_private": true,
+  "enable_gpu": true,
+  "enable_tpu": false,
+  "enable_internet": true,
+  "dataset_sources": [
+    "paultimothymooney/chest-xray-pneumonia",
+    "boubaniang/aeris-modeles-v1"
+  ],
+  "competition_sources": [],
+  "kernel_sources": [],
+  "model_sources": []
+}

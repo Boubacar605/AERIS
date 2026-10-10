@@ -1,0 +1,17 @@
+{
+  "id": "boubaniang/aeris-diag-aug",
+  "title": "aeris-diag-aug",
+  "code_file": "tb-diag-aug.ipynb",
+  "language": "python",
+  "kernel_type": "notebook",
+  "is_private": true,
+  "enable_gpu": false,
+  "enable_tpu": false,
+  "enable_internet": true,
+  "dataset_sources": [
+    "tawsifurrahman/tuberculosis-tb-chest-xray-dataset"
+  ],
+  "competition_sources": [],
+  "kernel_sources": [],
+  "model_sources": []
+}

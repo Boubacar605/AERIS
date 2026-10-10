@@ -1,0 +1,18 @@
+{
+  "id": "boubaniang/aeris-tb3-edge-96",
+  "title": "aeris-tb3-edge-96",
+  "code_file": "tb-edge-96.ipynb",
+  "language": "python",
+  "kernel_type": "notebook",
+  "is_private": true,
+  "enable_gpu": true,
+  "enable_tpu": false,
+  "enable_internet": true,
+  "dataset_sources": [
+    "tawsifurrahman/tuberculosis-tb-chest-xray-dataset",
+    "boubaniang/aeris-tb-manifests"
+  ],
+  "competition_sources": [],
+  "kernel_sources": [],
+  "model_sources": []
+}
