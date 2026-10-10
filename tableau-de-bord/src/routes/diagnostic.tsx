@@ -36,6 +36,7 @@ import {
 } from "@/lib/api";
 import { definirResultat } from "@/lib/resultat-store";
 import { cn } from "@/lib/utils";
+import { formatConfiance } from "@/lib/format";
 import { Pie, PieChart, ResponsiveContainer } from "recharts";
 
 export const Route = createFileRoute("/diagnostic")({
@@ -309,7 +310,7 @@ function VerdictUnique({
             t === "alert" && "text-alert",
           )}
         >
-          {Math.round(resultatUnique.confiance * 100)}%
+          {formatConfiance(resultatUnique.confiance)}
         </span>
       </div>
       <Meter value={Math.round(resultatUnique.confiance * 100)} tone={t} className="mt-1.5" />
@@ -767,7 +768,7 @@ function DiagnosticContent() {
               )}
             </Panel>
 
-            <Panel title="Study input" subtitle="Radiographie thoracique à analyser">
+            <Panel title="Image d'entrée" subtitle="Radiographie thoracique à analyser">
               <div className="grid-surface relative aspect-4/3 overflow-hidden rounded-lg border border-border bg-muted/40">
                 <label
                   htmlFor="radiographie"
@@ -878,7 +879,7 @@ function DiagnosticContent() {
                   className="flex flex-1 items-center justify-center gap-2 rounded-md bg-primary px-3 py-2 font-mono text-[11px] font-bold tracking-[0.14em] text-primary-foreground uppercase transition-opacity hover:opacity-90 disabled:opacity-50"
                 >
                   <Play className="size-3.5" />
-                  {running ? "Running…" : "Run inference"}
+                  {running ? "Exécution…" : "Lancer l'inférence"}
                 </button>
                 <button
                   type="button"
@@ -899,7 +900,10 @@ function DiagnosticContent() {
 
           {/* -------- Colonne droite : pipeline -------- */}
           <div className="flex flex-col gap-4">
-            <Panel title="Execution pipeline" subtitle="Progression de la requête dans le système">
+            <Panel
+              title="Pipeline d'exécution"
+              subtitle="Progression de la requête dans le système"
+            >
               <ol className="space-y-1.5">
                 {STEPS.map((s, i) => {
                   const state = step > i || resultat ? "done" : step === i ? "active" : "idle";
@@ -1076,7 +1080,7 @@ function DiagnosticContent() {
                                 indeterminate && "text-alert",
                               )}
                             >
-                              {Math.round(r.confiance * 100)}%
+                              {formatConfiance(r.confiance)}
                             </span>
                           </div>
                           <Meter
@@ -1318,7 +1322,7 @@ function DiagnosticContent() {
             })()}
 
             <Panel
-              title="Routing rationale"
+              title="Justification du routage"
               subtitle={libelleRaisonDestination(resultat.destination)}
             >
               <p className="text-[11px] text-muted-foreground">{resultat.raison}</p>
@@ -1391,7 +1395,7 @@ function DiagnosticContent() {
                     )}
                   >
                     {resultat.metriques.latence_reseau_ms >= 9000
-                      ? "offline"
+                      ? "hors ligne"
                       : `${Math.round(resultat.metriques.latence_reseau_ms)} ms`}
                   </p>
                   <dl className="mt-2 grid grid-cols-2 gap-2 font-mono text-[11px]">
@@ -1450,7 +1454,7 @@ function DiagnosticContent() {
             </div>
           </>
         ) : (
-          <Panel title="Clinical results" subtitle="En attente d'exécution">
+          <Panel title="Résultats cliniques" subtitle="En attente d'exécution">
             <div className="grid place-items-center py-10 text-center">
               <ScanLine className="size-8 text-muted-foreground" />
               <p className="mt-2 max-w-sm text-xs text-muted-foreground">

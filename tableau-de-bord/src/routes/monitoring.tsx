@@ -40,10 +40,10 @@ export const Route = createFileRoute("/monitoring")({
 
 /** Libellés lisibles pour les 4 services IA interrogés. */
 const LIBELLES_SERVICES: Record<string, { label: string; tone: "edge" | "cloud" }> = {
-  tb_edge: { label: "TB Classifier · Edge", tone: "edge" },
-  tb_cloud: { label: "TB Classifier · Cloud", tone: "cloud" },
-  pn_edge: { label: "PNA Classifier · Edge", tone: "edge" },
-  pn_cloud: { label: "PNA Classifier · Cloud", tone: "cloud" },
+  tb_edge: { label: "Classificateur TB · Edge", tone: "edge" },
+  tb_cloud: { label: "Classificateur TB · Cloud", tone: "cloud" },
+  pn_edge: { label: "Classificateur PN · Edge", tone: "edge" },
+  pn_cloud: { label: "Classificateur PN · Cloud", tone: "cloud" },
 };
 
 function GaugeTile({
@@ -90,15 +90,15 @@ function ServiceCard({ nom, sante }: { nom: string; sante: ServiceHealth | undef
   return (
     <Panel
       title={libelle.label}
-      subtitle={`node ${sante?.mode ?? "inconnu"}`}
+      subtitle={`nœud ${sante?.mode ?? "inconnu"}`}
       actions={
         enLigne ? (
           <Tag tone={libelle.tone}>
-            <StatusDot tone={libelle.tone} /> operational
+            <StatusDot tone={libelle.tone} /> opérationnel
           </Tag>
         ) : (
           <Tag tone="alert">
-            <StatusDot tone="alert" /> unreachable
+            <StatusDot tone="alert" /> injoignable
           </Tag>
         )
       }
@@ -263,7 +263,7 @@ function MonitoringPage() {
                 horsLigne ? "text-alert" : "text-ok",
               )}
             >
-              {horsLigne ? "offline" : "online"}
+              {horsLigne ? "hors ligne" : "en ligne"}
             </p>
           </div>
           <div className="panel p-3.5">
@@ -280,7 +280,7 @@ function MonitoringPage() {
         </div>
 
         <Panel
-          title="Service health"
+          title="Santé des services"
           subtitle="État des services d'inférence TB/PN sur chaque environnement"
         >
           {etatSante === "indisponible" ? (

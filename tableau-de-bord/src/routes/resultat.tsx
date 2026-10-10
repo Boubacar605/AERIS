@@ -661,7 +661,7 @@ function ResultatContent() {
         title="Résultat"
         description="Compte rendu clinique et relecture — validation du clinicien"
         right={
-          <Tag tone={dossier.resultat.destination}>{dossier.resultat.destination} execution</Tag>
+          <Tag tone={dossier.resultat.destination}>{dossier.resultat.destination} · exécution</Tag>
         }
       />
 
@@ -703,7 +703,7 @@ function ResultatContent() {
                 )}
               >
                 <p className={cn("label-xs", TONALITE_TITRE_CONCLUSION[rapport.fiabilite.tone])}>
-                  Conclusion — confiance {rapport.fiabilite.confiance} %
+                  Conclusion — confiance {rapport.fiabilite.confiance}
                 </p>
                 <p
                   className={cn(

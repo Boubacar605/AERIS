@@ -16,13 +16,13 @@ export const Route = createFileRoute("/settings")({
   component: SettingsPage,
   head: () => ({
     meta: [
-      { title: "Settings · AERIS Platform" },
+      { title: "Paramètres · Plateforme AERIS" },
       {
         name: "description",
         content:
           "Paramètres de la plateforme AERIS : politique de routage Edge-Cloud, seuils de bascule et nœuds enregistrés.",
       },
-      { property: "og:title", content: "Settings · AERIS Platform" },
+      { property: "og:title", content: "Paramètres · Plateforme AERIS" },
       {
         property: "og:description",
         content: "Politique de routage, seuils de bascule et nœuds de la plateforme AERIS.",
@@ -34,10 +34,10 @@ export const Route = createFileRoute("/settings")({
 });
 
 const LIBELLES_SERVICES: Record<string, string> = {
-  tb_edge: "TB Classifier · Edge",
-  tb_cloud: "TB Classifier · Cloud",
-  pn_edge: "PNA Classifier · Edge",
-  pn_cloud: "PNA Classifier · Cloud",
+  tb_edge: "Classificateur TB · Edge",
+  tb_cloud: "Classificateur TB · Cloud",
+  pn_edge: "Classificateur PN · Edge",
+  pn_cloud: "Classificateur PN · Cloud",
 };
 
 function SettingsPage() {
@@ -46,10 +46,10 @@ function SettingsPage() {
 
   const seuilsAffiches = seuils
     ? [
-        { label: "Edge CPU max", value: `${seuils.cpu} %`, hint: "Au-delà, délestage Cloud" },
-        { label: "Edge RAM max", value: `${seuils.ram} %`, hint: "Au-delà, délestage Cloud" },
+        { label: "CPU Edge max", value: `${seuils.cpu} %`, hint: "Au-delà, délestage Cloud" },
+        { label: "RAM Edge max", value: `${seuils.ram} %`, hint: "Au-delà, délestage Cloud" },
         {
-          label: "Network latency max",
+          label: "Latence réseau max",
           value: `${seuils.latence_ms} ms`,
           hint: "Au-delà, exécution locale forcée",
         },
@@ -58,9 +58,12 @@ function SettingsPage() {
 
   return (
     <AppShell>
-      <PageHeader title="Settings" description="Politique de routage et paramètres de plateforme" />
+      <PageHeader
+        title="Paramètres"
+        description="Politique de routage et paramètres de plateforme"
+      />
       <main className="grid gap-4 p-5 xl:grid-cols-2">
-        <Panel title="Routing thresholds" subtitle="Seuils du moteur de décision (GET /)">
+        <Panel title="Seuils de routage" subtitle="Seuils du moteur de décision (GET /)">
           {etatSeuils === "indisponible" ? (
             <EtatIndisponible
               message="Les seuils ne sont pas disponibles tant que le moteur ne répond pas."
@@ -84,7 +87,7 @@ function SettingsPage() {
         </Panel>
 
         <Panel
-          title="Registered nodes"
+          title="Nœuds enregistrés"
           subtitle="État des services d'inférence interrogés en direct"
         >
           {etatSante === "indisponible" ? (
@@ -114,7 +117,7 @@ function SettingsPage() {
                     </div>
                     <Tag tone={enLigne ? tone : "alert"}>
                       <StatusDot tone={enLigne ? tone : "alert"} pulse={false} />
-                      {enLigne ? "online" : "unreachable"}
+                      {enLigne ? "en ligne" : "injoignable"}
                     </Tag>
                   </li>
                 );

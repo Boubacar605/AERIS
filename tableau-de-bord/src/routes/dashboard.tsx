@@ -15,19 +15,20 @@ import {
 import { useEtatSysteme, useHistoriqueLive } from "@/hooks/use-api";
 import { useSeries } from "@/lib/aeris";
 import { cn } from "@/lib/utils";
+import { formatConfiance } from "@/lib/format";
 
 export const Route = createFileRoute("/dashboard")({
   beforeLoad: () => exigerRole("admin"),
   component: Dashboard,
   head: () => ({
     meta: [
-      { title: "AERIS · Edge-Cloud AI Control Center" },
+      { title: "AERIS · Centre de contrôle Edge-Cloud" },
       {
         name: "description",
         content:
           "Centre de contrôle AERIS : moteur de décision Edge-Cloud, métriques temps réel et activité d'inférence IA pour le triage radiologique assisté.",
       },
-      { property: "og:title", content: "AERIS · Edge-Cloud AI Control Center" },
+      { property: "og:title", content: "AERIS · Centre de contrôle Edge-Cloud" },
       {
         property: "og:description",
         content:
@@ -107,7 +108,7 @@ function Dashboard() {
     return (
       <AppShell>
         <PageHeader
-          title="Mission Control"
+          title="Centre de contrôle"
           description="Orchestration adaptative Edge-Cloud des services d'inférence IA"
         />
         <main className="p-5">
@@ -124,7 +125,7 @@ function Dashboard() {
     return (
       <AppShell>
         <PageHeader
-          title="Mission Control"
+          title="Centre de contrôle"
           description="Orchestration adaptative Edge-Cloud des services d'inférence IA"
         />
         <main className="space-y-4 p-5">
@@ -143,7 +144,7 @@ function Dashboard() {
   return (
     <AppShell>
       <PageHeader
-        title="Mission Control"
+        title="Centre de contrôle"
         description="Orchestration adaptative Edge-Cloud des services d'inférence IA"
       />
 
@@ -216,7 +217,7 @@ function Dashboard() {
             subtitle="Dernières requêtes routées par le moteur"
             actions={
               <Tag tone="ok">
-                <StatusDot tone="ok" /> streaming
+                <StatusDot tone="ok" /> flux continu
               </Tag>
             }
             bodyClassName="p-0"
@@ -255,7 +256,7 @@ function Dashboard() {
                       <p className="truncate text-[11px] text-muted-foreground">{r.finding}</p>
                     </div>
                     <span className="hidden w-16 shrink-0 text-right font-mono text-[11px] tabular-nums sm:block">
-                      {r.confidence}%
+                      {formatConfiance(r.confidence)}
                     </span>
                     <Tag tone={r.target}>{r.target}</Tag>
                     <span className="w-14 shrink-0 text-right font-mono text-[11px] tabular-nums">

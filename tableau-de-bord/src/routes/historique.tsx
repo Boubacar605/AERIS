@@ -12,6 +12,7 @@ import {
 } from "@/components/aeris/primitives";
 import { useHistoriqueLive } from "@/hooks/use-api";
 import { cn } from "@/lib/utils";
+import { formatConfiance } from "@/lib/format";
 
 export const Route = createFileRoute("/historique")({
   beforeLoad: () => exigerRole("admin", "clinicien"),
@@ -118,7 +119,7 @@ function HistoryPage() {
                           : "border-border text-muted-foreground hover:text-foreground",
                       )}
                     >
-                      {f}
+                      {f === "all" ? "tous" : f}
                     </button>
                   ))}
                 </div>
@@ -141,7 +142,7 @@ function HistoryPage() {
                           "Service",
                           "Résultat",
                           "Confiance",
-                          "Exec",
+                          "Exéc.",
                           "Latence",
                           "Statut",
                         ].map((h) => (
@@ -163,7 +164,9 @@ function HistoryPage() {
                           <td className="px-4 py-2 font-mono font-semibold">#{r.id}</td>
                           <td className="px-4 py-2 whitespace-nowrap">{r.service}</td>
                           <td className="px-4 py-2 text-muted-foreground">{r.finding}</td>
-                          <td className="px-4 py-2 font-mono tabular-nums">{r.confidence}%</td>
+                          <td className="px-4 py-2 font-mono tabular-nums">
+                            {formatConfiance(r.confidence)}
+                          </td>
                           <td className="px-4 py-2">
                             <Tag tone={r.target}>{r.target}</Tag>
                           </td>

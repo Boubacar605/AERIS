@@ -131,7 +131,7 @@ const NAV: ReadonlyArray<{
   deconnecte?: boolean;
 }> = [
   { to: "/", label: "Accueil", icon: Home, deconnecte: true },
-  { to: "/dashboard", label: "Dashboard", icon: LayoutGrid, roles: ["admin"] },
+  { to: "/dashboard", label: "Tableau de bord", icon: LayoutGrid, roles: ["admin"] },
   // Tableau de bord du poste : l'état de la charge avant d'ouvrir quoi que ce soit.
   { to: "/poste", label: "Poste", icon: Gauge, roles: ["clinicien"] },
   { to: "/diagnostic", label: "Diagnostic", icon: ScanLine, roles: ["clinicien"] },
@@ -149,7 +149,7 @@ const NAV: ReadonlyArray<{
   { to: "/admin/patients", label: "Patients", icon: UserRound, roles: ["admin"] },
   { to: "/monitoring", label: "Monitoring", icon: Activity, roles: ["admin"] },
   { to: "/architecture", label: "Architecture", icon: Network, roles: ["admin"] },
-  { to: "/settings", label: "Settings", icon: Settings, roles: ["admin"] },
+  { to: "/settings", label: "Paramètres", icon: Settings, roles: ["admin"] },
 ];
 
 /**
@@ -367,11 +367,11 @@ export function PageHeader({
               connecte ? "text-ok" : "text-alert",
             )}
           >
-            {connecte ? "System operational" : "Backend indisponible"}
+            {connecte ? "Système opérationnel" : "Backend indisponible"}
           </span>
         </div>
         <div className="text-right">
-          <p className="label-xs">Last sync</p>
+          <p className="label-xs">Dernière synchro</p>
           <p className="font-mono text-xs tabular-nums">
             {now ? now.toLocaleTimeString("fr-FR", { hour12: false }) : "--:--:--"}
           </p>

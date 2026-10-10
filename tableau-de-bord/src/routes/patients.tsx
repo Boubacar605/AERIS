@@ -37,6 +37,7 @@ import { useChronologiePatient, useDossiersPatients } from "@/hooks/use-api";
 import type { EtatValidation, VerdictClinique } from "@/lib/api";
 import { exigerRole } from "@/lib/authentification";
 import { cn } from "@/lib/utils";
+import { formatConfiance } from "@/lib/format";
 
 export const Route = createFileRoute("/patients")({
   beforeLoad: () => exigerRole("clinicien"),
@@ -81,7 +82,7 @@ function LigneVerdict({ verdict }: { verdict: VerdictClinique }) {
         {positif ? "positif" : "négatif"}
       </span>
       <span className="font-mono text-[11px] text-muted-foreground tabular-nums">
-        {Math.round(verdict.confiance * 100)} %
+        {formatConfiance(verdict.confiance)}
       </span>
     </span>
   );
@@ -306,7 +307,7 @@ function Chronologie({ codePatient }: { codePatient: string }) {
                           {maintenant.prediction === "positif" ? "positif" : "négatif"}
                         </span>
                         <span className="font-mono text-[11px] text-muted-foreground tabular-nums">
-                          {Math.round(maintenant.confiance * 100)} %
+                          {formatConfiance(maintenant.confiance)}
                         </span>
                       </span>
                     ) : (

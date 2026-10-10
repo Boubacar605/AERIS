@@ -48,14 +48,14 @@ function Node({
         </div>
         {active ? (
           <Tag tone={isEdge ? "edge" : "cloud"}>
-            <StatusDot tone={isEdge ? "edge" : "cloud"} /> selected
+            <StatusDot tone={isEdge ? "edge" : "cloud"} /> sélectionné
           </Tag>
         ) : (
-          <Tag tone="neutral">standby</Tag>
+          <Tag tone="neutral">veille</Tag>
         )}
       </div>
       <p className="mt-1 text-[11px] text-muted-foreground">
-        {isEdge ? "Local inference · on-premise node" : "Remote inference · managed region"}
+        {isEdge ? "Inférence locale · nœud sur site" : "Inférence distante · région managée"}
       </p>
       <dl className="mt-3 grid grid-cols-3 gap-2 font-mono text-[11px]">
         {[
@@ -88,7 +88,7 @@ export function DecisionEngine({
 
   const raisons = [
     {
-      label: "Latence reseau",
+      label: "Latence réseau",
       value: horsLigne ? "injoignable" : `${Math.round(latence)} ms`,
       tone: horsLigne ? "alert" : latence < 160 ? "ok" : "warn",
     },
@@ -113,7 +113,7 @@ export function DecisionEngine({
             : "alert",
     },
     {
-      label: "Reseau",
+      label: "Réseau",
       value: decision.metriques.reseau_disponible ? "disponible" : "interrompu",
       tone: decision.metriques.reseau_disponible ? "ok" : "alert",
     },
@@ -125,14 +125,16 @@ export function DecisionEngine({
         <div className="flex items-center gap-2">
           <GitBranch className="size-4 text-primary" />
           <h2 className="font-mono text-xs font-bold tracking-[0.18em] uppercase">
-            Edge-Cloud Decision Engine
+            Moteur de décision Edge-Cloud
           </h2>
         </div>
         <div className="flex items-center gap-2">
           <Tag tone="neutral">
-            <StatusDot tone={edge ? "edge" : "cloud"} /> temps reel
+            <StatusDot tone={edge ? "edge" : "cloud"} /> temps réel
           </Tag>
-          <Tag tone={edge ? "edge" : "cloud"}>{edge ? "edge selected" : "cloud selected"}</Tag>
+          <Tag tone={edge ? "edge" : "cloud"}>
+            {edge ? "Edge sélectionné" : "Cloud sélectionné"}
+          </Tag>
         </div>
       </header>
 
@@ -144,7 +146,7 @@ export function DecisionEngine({
               <div className="flex items-center gap-2">
                 <Zap className="size-3.5 text-primary" />
                 <p className="font-mono text-xs font-semibold">
-                  REQUEST #{requestId}
+                  REQUÊTE #{requestId}
                   <span className="ml-2 font-sans font-normal text-muted-foreground">
                     Radiographie thoracique · TB + PN
                   </span>
@@ -188,7 +190,7 @@ export function DecisionEngine({
             </svg>
             <div className="pointer-events-none absolute inset-x-0 top-[14px] flex justify-center">
               <span className="rounded border border-border bg-card px-2 py-0.5 font-mono text-[10px] tracking-[0.14em] uppercase shadow-panel">
-                decision engine
+                moteur de décision
               </span>
             </div>
           </div>
@@ -213,7 +215,7 @@ export function DecisionEngine({
 
         {/* explainability */}
         <aside className="rounded-lg border border-border bg-card p-3.5">
-          <p className="label-xs">{edge ? "Why edge?" : "Why cloud?"}</p>
+          <p className="label-xs">{edge ? "Pourquoi Edge ?" : "Pourquoi Cloud ?"}</p>
           <ul className="mt-2.5 space-y-2">
             {raisons.map((r) => (
               <li key={r.label} className="flex items-center justify-between gap-2 text-xs">
@@ -227,7 +229,7 @@ export function DecisionEngine({
           </ul>
 
           <p className="mt-4 rounded border border-border bg-muted/60 p-2.5 text-[11px] leading-relaxed">
-            <span className="label-xs block">Decision</span>
+            <span className="label-xs block">Décision</span>
             <span className="mt-1 block">{decision.raison}</span>
           </p>
         </aside>

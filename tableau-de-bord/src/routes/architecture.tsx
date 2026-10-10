@@ -41,35 +41,35 @@ export const Route = createFileRoute("/architecture")({
 const LAYERS = [
   {
     icon: MonitorSmartphone,
-    name: "Presentation layer",
+    name: "Couche de présentation",
     tech: "React 19 · TanStack Start · SSR",
     desc: "Console de supervision temps réel, journal d'inférences et injection de scénarios.",
     tone: "neutral" as const,
-    items: ["Mission Control", "Diagnostic", "Monitoring", "Historique"],
+    items: ["Centre de contrôle", "Diagnostic", "Monitoring", "Historique"],
   },
   {
     icon: GitBranch,
-    name: "Orchestration layer",
-    tech: "Adaptive decision engine",
+    name: "Couche d'orchestration",
+    tech: "Moteur de décision adaptatif",
     desc: "Score Edge et Cloud à chaque requête à partir de la télémétrie, avec bascule automatique.",
     tone: "ok" as const,
-    items: ["Scoring policy", "Health probes", "Failover", "Explainability"],
+    items: ["Politique de scoring", "Sondes de santé", "Bascule automatique", "Explicabilité"],
   },
   {
     icon: Cpu,
-    name: "Edge execution layer",
-    tech: "edge-node-01 · runtime local",
+    name: "Couche d'exécution Edge",
+    tech: "edge-node-01 · exécution locale",
     desc: "Inférence locale à faible latence, fonctionne même sans lien Cloud.",
     tone: "edge" as const,
-    items: ["ONNX runtime", "Local cache", "Offline mode", "183 ms avg"],
+    items: ["ONNX runtime", "Cache local", "Mode hors ligne", "183 ms moy."],
   },
   {
     icon: Cloud,
-    name: "Cloud execution layer",
+    name: "Couche d'exécution Cloud",
     tech: "cloud-eu-w1 · GPU managé",
     desc: "Délestage des charges lourdes et modèles volumineux vers la région managée.",
     tone: "cloud" as const,
-    items: ["GPU pool", "Autoscaling", "Batch queue", "241 ms avg"],
+    items: ["Pool GPU", "Auto-scaling", "File par lots", "241 ms moy."],
   },
 ];
 
@@ -81,7 +81,7 @@ function ArchitecturePage() {
         description="Vue en couches du système distribué AERIS"
         right={
           <Tag tone="neutral">
-            <StatusDot tone="ok" /> 4 layers
+            <StatusDot tone="ok" /> 4 couches
           </Tag>
         }
       />
@@ -92,7 +92,7 @@ function ArchitecturePage() {
             ["Nœuds", "2", Network],
             ["Modèles IA", "2", Boxes],
             ["Couches", "4", Layers],
-            ["Stores", "3", Database],
+            ["Magasins", "3", Database],
           ].map(([label, value, Icon]) => {
             const I = Icon as typeof Cpu;
             return (
@@ -114,9 +114,9 @@ function ArchitecturePage() {
         <section className="panel grid-surface overflow-hidden">
           <header className="flex items-center justify-between border-b border-border bg-card px-4 py-2.5">
             <h2 className="font-mono text-xs font-bold tracking-[0.18em] uppercase">
-              System topology
+              Topologie du système
             </h2>
-            <Tag tone="neutral">request flow</Tag>
+            <Tag tone="neutral">flux de requêtes</Tag>
           </header>
           <div className="space-y-2 p-4">
             {LAYERS.map((l, i) => (
@@ -155,7 +155,7 @@ function ArchitecturePage() {
                         <p className="mt-1 max-w-xl text-xs text-muted-foreground">{l.desc}</p>
                       </div>
                     </div>
-                    <Tag tone={l.tone}>layer {i + 1}</Tag>
+                    <Tag tone={l.tone}>couche {i + 1}</Tag>
                   </div>
                   <div className="mt-3 flex flex-wrap gap-1.5">
                     {l.items.map((it) => (
@@ -183,12 +183,12 @@ function ArchitecturePage() {
             <ul className="space-y-2">
               {[
                 {
-                  name: "TB Classifier",
+                  name: "Classificateur TB",
                   detail: "Détection de la tuberculose",
                   tags: ["Edge", "Cloud", "Keras CNN"],
                 },
                 {
-                  name: "Pneumonia Classifier",
+                  name: "Classificateur Pneumonie",
                   detail: "Détection de la pneumonie",
                   tags: ["Edge", "Cloud", "Keras CNN"],
                 },
@@ -214,12 +214,12 @@ function ArchitecturePage() {
             </ul>
           </Panel>
 
-          <Panel title="Resilience & data" subtitle="Garanties opérationnelles du système">
+          <Panel title="Résilience & données" subtitle="Garanties opérationnelles du système">
             <ul className="space-y-2 text-xs">
               {[
                 [
                   ShieldCheck,
-                  "Failover automatique",
+                  "Bascule automatique",
                   "Bascule Edge en moins d'une seconde si le Cloud devient injoignable.",
                 ],
                 [
