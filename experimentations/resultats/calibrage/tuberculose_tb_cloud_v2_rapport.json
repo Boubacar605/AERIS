@@ -1,0 +1,107 @@
+{
+  "pathologie": "tuberculose",
+  "rappel_cible": 0.9,
+  "source": "experimentations/resultats/calibrage/tuberculose_tb_cloud_v2_scores.csv",
+  "modes": {
+    "tb_cloud_v2": {
+      "temperature": null,
+      "diagnostic": "temperature_non_estimable",
+      "correction_retenue": "aucune",
+      "temperature_estimable": false,
+      "pente_calibration": 3.9409602213204487,
+      "ordonnee_calibration": 2.4932478946175185,
+      "acquisition_temperature": {
+        "temperature": NaN,
+        "acquisition_inferieure": NaN,
+        "acquisition_superieure": NaN,
+        "tirages_reussis": 0.0,
+        "exclut_1": NaN
+      },
+      "avant": {
+        "effectif": 420,
+        "positifs": 75,
+        "prevalence": 0.17857142857142858,
+        "brier": 2.298270304273995e-06,
+        "brier_skill": 0.9999843317920126,
+        "nll": 0.00014165713109967276,
+        "ece": 1.4048998564388404e-05,
+        "nb_tranches": 10.0,
+        "confiance_moyenne": 0.17849579798536774,
+        "courbe": [
+          {
+            "bin_bas": 0.0,
+            "bin_haut": 0.1,
+            "effectif": 345,
+            "confiance_moyenne": 3.947963452881824e-05,
+            "frequence_observee": 0.0
+          },
+          {
+            "bin_bas": 0.9,
+            "bin_haut": 1.0,
+            "effectif": 75,
+            "confiance_moyenne": 0.9993948623992268,
+            "frequence_observee": 1.0
+          }
+        ]
+      },
+      "apres": {
+        "effectif": 420,
+        "positifs": 75,
+        "prevalence": 0.17857142857142858,
+        "brier": 2.298270304273995e-06,
+        "brier_skill": 0.9999843317920126,
+        "nll": 0.00014165713109967276,
+        "ece": 1.4048998564388404e-05,
+        "nb_tranches": 10.0,
+        "confiance_moyenne": 0.17849579798536774,
+        "courbe": [
+          {
+            "bin_bas": 0.0,
+            "bin_haut": 0.1,
+            "effectif": 345,
+            "confiance_moyenne": 3.947963452881824e-05,
+            "frequence_observee": 0.0
+          },
+          {
+            "bin_bas": 0.9,
+            "bin_haut": 1.0,
+            "effectif": 75,
+            "confiance_moyenne": 0.9993948623992268,
+            "frequence_observee": 1.0
+          }
+        ]
+      },
+      "seuil_brut": {
+        "seuil": 0.99999857,
+        "rappel": 0.9066666666666666,
+        "precision": 1.0,
+        "specificite": 1.0,
+        "rappel_atteignable": 1.0
+      },
+      "seuil_calibre": {
+        "seuil": 0.99999857,
+        "rappel": 0.9066666666666666,
+        "precision": 1.0,
+        "specificite": 1.0,
+        "rappel_atteignable": 1.0
+      },
+      "auc": 1.0,
+      "saturation": {
+        "probabilites_a_zero": 333.0,
+        "probabilites_a_un": 70.0,
+        "probabilites_par_etranglement": 0.0
+      },
+      "metriques_brutes": {
+        "effectif": 420,
+        "positifs": 75,
+        "prevalence": 0.17857142857142858,
+        "brier": 2.298270304273995e-06,
+        "brier_skill": 0.9999843317920126,
+        "nll": 0.00014165713109967276,
+        "ece": 1.4048998542713354e-05,
+        "nb_tranches": 10.0,
+        "confiance_moyenne": 0.17849579798542717
+      }
+    }
+  }
+}

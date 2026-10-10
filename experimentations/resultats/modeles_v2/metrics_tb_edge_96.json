@@ -1,0 +1,10 @@
+{
+  "mode": "tb_edge_96",
+  "auc": 0.9731400966183575,
+  "brier": 0.017649420074434083,
+  "nll": 0.12251550283487085,
+  "nb_test": 420,
+  "positifs_test": 75,
+  "saturation_float32": 0,
+  "epochs_effectives": 50
+}

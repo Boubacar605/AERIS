@@ -1,0 +1,11 @@
+{
+  "mode": "pn_cloud",
+  "auc": 0.9667652859960552,
+  "brier": 0.17025026209346206,
+  "nll": 1.0918416427860502,
+  "nb_test": 624,
+  "positifs_test": 390,
+  "saturation_float32": 229,
+  "epochs_congelation": 18,
+  "epochs_ajustement": 30
+}

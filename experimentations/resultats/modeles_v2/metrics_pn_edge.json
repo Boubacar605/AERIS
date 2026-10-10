@@ -1,0 +1,11 @@
+{
+  "mode": "pn_edge",
+  "auc": 0.8226934034626343,
+  "brier": 0.1931519053427238,
+  "nll": 0.5806428980759011,
+  "nb_test": 624,
+  "positifs_test": 390,
+  "saturation_float32": 0,
+  "note_saturation": "les logits au-dela de ~16 saturent sigmoid en 1.0 exact en float32 ; la temperature n est alors pas identifiable (section 5.0 du protocole)",
+  "epochs_effectives": 12
+}

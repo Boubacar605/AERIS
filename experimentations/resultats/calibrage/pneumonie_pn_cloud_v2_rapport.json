@@ -1,0 +1,219 @@
+{
+  "pathologie": "pneumonie",
+  "rappel_cible": 0.9,
+  "source": "experimentations/resultats/calibrage/pneumonie_pn_cloud_v2_scores.csv",
+  "modes": {
+    "pn_cloud_v2": {
+      "temperature": 6.484971790001508,
+      "diagnostic": "exces_de_confiance",
+      "correction_retenue": "temperature_scaling",
+      "temperature_estimable": true,
+      "pente_calibration": 0.3833761785031879,
+      "ordonnee_calibration": -2.9320144350263315,
+      "acquisition_temperature": {
+        "temperature": 6.484971790001508,
+        "acquisition_inferieure": 5.61801809350714,
+        "acquisition_superieure": 7.353908437515588,
+        "tirages_reussis": 1000.0,
+        "exclut_1": 1.0
+      },
+      "avant": {
+        "effectif": 624,
+        "positifs": 390,
+        "prevalence": 0.625,
+        "brier": 0.17025026170412907,
+        "brier_skill": 0.2735988833957159,
+        "nll": 1.110418585711497,
+        "ece": 0.01825901379655467,
+        "nb_tranches": 10.0,
+        "confiance_moyenne": 0.8075901379655466,
+        "courbe": [
+          {
+            "bin_bas": 0.0,
+            "bin_haut": 0.1,
+            "effectif": 96,
+            "confiance_moyenne": 0.01529076948655396,
+            "frequence_observee": 0.010416666666666666
+          },
+          {
+            "bin_bas": 0.1,
+            "bin_haut": 0.2,
+            "effectif": 7,
+            "confiance_moyenne": 0.13842002857142857,
+            "frequence_observee": 0.0
+          },
+          {
+            "bin_bas": 0.2,
+            "bin_haut": 0.3,
+            "effectif": 8,
+            "confiance_moyenne": 0.24963659875,
+            "frequence_observee": 0.125
+          },
+          {
+            "bin_bas": 0.3,
+            "bin_haut": 0.4,
+            "effectif": 4,
+            "confiance_moyenne": 0.34907377500000003,
+            "frequence_observee": 0.0
+          },
+          {
+            "bin_bas": 0.4,
+            "bin_haut": 0.5,
+            "effectif": 6,
+            "confiance_moyenne": 0.45635036833333326,
+            "frequence_observee": 0.0
+          },
+          {
+            "bin_bas": 0.5,
+            "bin_haut": 0.6,
+            "effectif": 3,
+            "confiance_moyenne": 0.5411215333333333,
+            "frequence_observee": 0.0
+          },
+          {
+            "bin_bas": 0.6,
+            "bin_haut": 0.7,
+            "effectif": 7,
+            "confiance_moyenne": 0.6292207928571428,
+            "frequence_observee": 0.0
+          },
+          {
+            "bin_bas": 0.7,
+            "bin_haut": 0.8,
+            "effectif": 6,
+            "confiance_moyenne": 0.7385342166666667,
+            "frequence_observee": 0.0
+          },
+          {
+            "bin_bas": 0.8,
+            "bin_haut": 0.9,
+            "effectif": 5,
+            "confiance_moyenne": 0.8672088460000001,
+            "frequence_observee": 0.0
+          },
+          {
+            "bin_bas": 0.9,
+            "bin_haut": 1.0,
+            "effectif": 482,
+            "confiance_moyenne": 0.9970388843149212,
+            "frequence_observee": 0.8049792531120332
+          }
+        ]
+      },
+      "apres": {
+        "effectif": 624,
+        "positifs": 390,
+        "prevalence": 0.625,
+        "brier": 0.12234615996817172,
+        "brier_skill": 0.477989717469134,
+        "nll": 0.36880989504972717,
+        "ece": 0.015286242213466722,
+        "nb_tranches": 10.0,
+        "confiance_moyenne": 0.7652955196533453,
+        "courbe": [
+          {
+            "bin_bas": 0.0,
+            "bin_haut": 0.1,
+            "effectif": 1,
+            "confiance_moyenne": 0.08370374323460533,
+            "frequence_observee": 0.0
+          },
+          {
+            "bin_bas": 0.1,
+            "bin_haut": 0.2,
+            "effectif": 7,
+            "confiance_moyenne": 0.17614536846420534,
+            "frequence_observee": 0.0
+          },
+          {
+            "bin_bas": 0.2,
+            "bin_haut": 0.3,
+            "effectif": 44,
+            "confiance_moyenne": 0.25435787671880244,
+            "frequence_observee": 0.022727272727272728
+          },
+          {
+            "bin_bas": 0.3,
+            "bin_haut": 0.4,
+            "effectif": 40,
+            "confiance_moyenne": 0.3556433154728039,
+            "frequence_observee": 0.0
+          },
+          {
+            "bin_bas": 0.4,
+            "bin_haut": 0.5,
+            "effectif": 29,
+            "confiance_moyenne": 0.4540079560034029,
+            "frequence_observee": 0.034482758620689655
+          },
+          {
+            "bin_bas": 0.5,
+            "bin_haut": 0.6,
+            "effectif": 28,
+            "confiance_moyenne": 0.5513340846164685,
+            "frequence_observee": 0.03571428571428571
+          },
+          {
+            "bin_bas": 0.6,
+            "bin_haut": 0.7,
+            "effectif": 46,
+            "confiance_moyenne": 0.6600189929000188,
+            "frequence_observee": 0.1956521739130435
+          },
+          {
+            "bin_bas": 0.7,
+            "bin_haut": 0.8,
+            "effectif": 53,
+            "confiance_moyenne": 0.7485401069525806,
+            "frequence_observee": 0.4339622641509434
+          },
+          {
+            "bin_bas": 0.8,
+            "bin_haut": 0.9,
+            "effectif": 110,
+            "confiance_moyenne": 0.8553999353235361,
+            "frequence_observee": 0.8454545454545455
+          },
+          {
+            "bin_bas": 0.9,
+            "bin_haut": 1.0,
+            "effectif": 266,
+            "confiance_moyenne": 0.9702222797963442,
+            "frequence_observee": 0.9849624060150376
+          }
+        ]
+      },
+      "seuil_brut": {
+        "seuil": 0.9999193,
+        "rappel": 0.9,
+        "precision": 0.9435483870967742,
+        "specificite": 0.9102564102564102,
+        "rappel_atteignable": 1.0
+      },
+      "seuil_calibre": {
+        "seuil": 0.8105077244581136,
+        "rappel": 0.9,
+        "precision": 0.9435483870967742,
+        "specificite": 0.9102564102564102,
+        "rappel_atteignable": 1.0
+      },
+      "auc": 0.9667652859960553,
+      "saturation": {
+        "probabilites_a_zero": 6.0,
+        "probabilites_a_un": 362.0,
+        "probabilites_par_etranglement": 0.0
+      },
+      "metriques_brutes": {
+        "effectif": 624,
+        "positifs": 390,
+        "prevalence": 0.625,
+        "brier": 0.17025026170413232,
+        "brier_skill": 0.27359888339570204,
+        "nll": 1.110418585711497,
+        "ece": 0.018259013796588005,
+        "nb_tranches": 10.0,
+        "confiance_moyenne": 0.8075901379658801
+      }
+    }
+  }
+}

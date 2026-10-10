@@ -1,0 +1,205 @@
+{
+  "pathologie": "tuberculose",
+  "rappel_cible": 0.9,
+  "source": "experimentations/resultats/calibrage/tuberculose_tb_edge_v2_scores.csv",
+  "modes": {
+    "tb_edge_v2": {
+      "temperature": 1.5911983985411993,
+      "diagnostic": "non_calibrable",
+      "correction_retenue": "aucune",
+      "temperature_estimable": true,
+      "pente_calibration": 0.643515410144854,
+      "ordonnee_calibration": 0.18233382145788335,
+      "acquisition_temperature": {
+        "temperature": 1.5911983985411993,
+        "acquisition_inferieure": 0.9956914390198198,
+        "acquisition_superieure": 2.1093504474996747,
+        "tirages_reussis": 995.0,
+        "exclut_1": 0.0
+      },
+      "avant": {
+        "effectif": 420,
+        "positifs": 75,
+        "prevalence": 0.17857142857142858,
+        "brier": 0.01764942008474425,
+        "brier_skill": 0.8796769969874827,
+        "nll": 0.12251548939502568,
+        "ece": 0.002445150246695468,
+        "nb_tranches": 10.0,
+        "confiance_moyenne": 0.16900739067590242,
+        "courbe": [
+          {
+            "bin_bas": 0.0,
+            "bin_haut": 0.1,
+            "effectif": 340,
+            "confiance_moyenne": 0.003810959893761839,
+            "frequence_observee": 0.01764705882352941
+          },
+          {
+            "bin_bas": 0.1,
+            "bin_haut": 0.2,
+            "effectif": 4,
+            "confiance_moyenne": 0.12920175,
+            "frequence_observee": 0.0
+          },
+          {
+            "bin_bas": 0.2,
+            "bin_haut": 0.3,
+            "effectif": 2,
+            "confiance_moyenne": 0.23233947500000002,
+            "frequence_observee": 0.0
+          },
+          {
+            "bin_bas": 0.3,
+            "bin_haut": 0.4,
+            "effectif": 1,
+            "confiance_moyenne": 0.3261411,
+            "frequence_observee": 0.0
+          },
+          {
+            "bin_bas": 0.4,
+            "bin_haut": 0.5,
+            "effectif": 4,
+            "confiance_moyenne": 0.4546851275,
+            "frequence_observee": 0.0
+          },
+          {
+            "bin_bas": 0.5,
+            "bin_haut": 0.6,
+            "effectif": 1,
+            "confiance_moyenne": 0.5768022,
+            "frequence_observee": 1.0
+          },
+          {
+            "bin_bas": 0.6,
+            "bin_haut": 0.7,
+            "effectif": 1,
+            "confiance_moyenne": 0.6309515,
+            "frequence_observee": 1.0
+          },
+          {
+            "bin_bas": 0.8,
+            "bin_haut": 0.9,
+            "effectif": 5,
+            "confiance_moyenne": 0.8505153699999999,
+            "frequence_observee": 1.0
+          },
+          {
+            "bin_bas": 0.9,
+            "bin_haut": 1.0,
+            "effectif": 62,
+            "confiance_moyenne": 0.985494832419355,
+            "frequence_observee": 1.0
+          }
+        ]
+      },
+      "apres": {
+        "effectif": 420,
+        "positifs": 75,
+        "prevalence": 0.17857142857142858,
+        "brier": 0.019782840613630705,
+        "brier_skill": 0.8651326344253351,
+        "nll": 0.10471000922069373,
+        "ece": 0.002294779893012134,
+        "nb_tranches": 10.0,
+        "confiance_moyenne": 0.17396649927596103,
+        "courbe": [
+          {
+            "bin_bas": 0.0,
+            "bin_haut": 0.1,
+            "effectif": 324,
+            "confiance_moyenne": 0.01099203332684582,
+            "frequence_observee": 0.012345679012345678
+          },
+          {
+            "bin_bas": 0.1,
+            "bin_haut": 0.2,
+            "effectif": 16,
+            "confiance_moyenne": 0.12583291912000022,
+            "frequence_observee": 0.125
+          },
+          {
+            "bin_bas": 0.2,
+            "bin_haut": 0.3,
+            "effectif": 5,
+            "confiance_moyenne": 0.24411887847266572,
+            "frequence_observee": 0.0
+          },
+          {
+            "bin_bas": 0.3,
+            "bin_haut": 0.4,
+            "effectif": 2,
+            "confiance_moyenne": 0.366233328203049,
+            "frequence_observee": 0.0
+          },
+          {
+            "bin_bas": 0.4,
+            "bin_haut": 0.5,
+            "effectif": 4,
+            "confiance_moyenne": 0.4714037171469675,
+            "frequence_observee": 0.0
+          },
+          {
+            "bin_bas": 0.5,
+            "bin_haut": 0.6,
+            "effectif": 2,
+            "confiance_moyenne": 0.5659854225362908,
+            "frequence_observee": 1.0
+          },
+          {
+            "bin_bas": 0.7,
+            "bin_haut": 0.8,
+            "effectif": 5,
+            "confiance_moyenne": 0.7492165018296956,
+            "frequence_observee": 1.0
+          },
+          {
+            "bin_bas": 0.8,
+            "bin_haut": 0.9,
+            "effectif": 13,
+            "confiance_moyenne": 0.8706096866455368,
+            "frequence_observee": 1.0
+          },
+          {
+            "bin_bas": 0.9,
+            "bin_haut": 1.0,
+            "effectif": 49,
+            "confiance_moyenne": 0.9685005917166378,
+            "frequence_observee": 1.0
+          }
+        ]
+      },
+      "seuil_brut": {
+        "seuil": 0.6309515,
+        "rappel": 0.9066666666666666,
+        "precision": 1.0,
+        "specificite": 1.0,
+        "rappel_atteignable": 1.0
+      },
+      "seuil_calibre": {
+        "seuil": 0.583471846818004,
+        "rappel": 0.9066666666666666,
+        "precision": 1.0,
+        "specificite": 1.0,
+        "rappel_atteignable": 1.0
+      },
+      "auc": 0.9731400966183575,
+      "saturation": {
+        "probabilites_a_zero": 171.0,
+        "probabilites_a_un": 3.0,
+        "probabilites_par_etranglement": 0.0
+      },
+      "metriques_brutes": {
+        "effectif": 420,
+        "positifs": 75,
+        "prevalence": 0.17857142857142858,
+        "brier": 0.01764942008474425,
+        "brier_skill": 0.8796769969874827,
+        "nll": 0.12251548939502568,
+        "ece": 0.0024451502466978896,
+        "nb_tranches": 10.0,
+        "confiance_moyenne": 0.1690073906758782
+      }
+    }
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "mode": "tb_cloud_densenet121",
+  "auc": 1.0,
+  "brier": 2.2982721959018226e-06,
+  "nll": 0.00014175491915658975,
+  "nb_test": 420,
+  "positifs_test": 75,
+  "saturation_float32": 62,
+  "epochs_congelation": 28,
+  "epochs_ajustement": 25
+}
