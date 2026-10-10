@@ -14,6 +14,7 @@
 import { ArrowUpRight, BadgeCheck, Cross, Info, ScanLine, ShieldAlert } from "lucide-react";
 import { Meter, StatusDot, Tag } from "./primitives";
 import { cn } from "@/lib/utils";
+import { formatConfiance } from "@/lib/format";
 import type { ResultatDiagnostic } from "@/lib/api";
 
 type Verdict = {
@@ -276,7 +277,7 @@ export function SyntheseClinique({ tb, pn, destination, escalades = [] }: Props)
               t === "alert" && "text-alert",
             )}
           >
-            {Math.round(verdict.confiance * 100)}%
+            {formatConfiance(verdict.confiance)}
           </span>
         </div>
         <Meter value={Math.round(verdict.confiance * 100)} tone={t} className="mt-1.5" />
@@ -333,7 +334,7 @@ export function SyntheseClinique({ tb, pn, destination, escalades = [] }: Props)
                     : "text-alert",
               )}
             >
-              {Math.round(row.contrib.confiance * 100)}%
+              {formatConfiance(row.contrib.confiance)}
             </span>
             <Tag tone={row.tone} className="py-px text-[9px]">
               {row.role}

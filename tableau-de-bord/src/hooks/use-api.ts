@@ -109,7 +109,7 @@ function mapDiagnosticVersRecords(d: DiagnosticHistorique): InferenceRecord[] {
       id: d.id,
       time: new Date(d.horodatage.replace("T", " ")).toTimeString().slice(0, 8),
       service: pathologieTB ? SERVICE_TB : SERVICE_PN,
-      confidence: Math.round(r.confiance * 100),
+      confidence: r.confiance,
       target: d.destination,
       latencyMs: Math.round(r.temps_inference_ms),
       status: d.statut,

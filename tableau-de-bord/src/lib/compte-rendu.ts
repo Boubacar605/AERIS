@@ -13,6 +13,7 @@ import {
 } from "@/components/aeris/SyntheseClinique";
 import type { ResultatAnalyse, ResultatDiagnostic } from "@/lib/api";
 import type { DossierResultat } from "@/lib/resultat-store";
+import { formatConfiance } from "@/lib/format";
 
 export type ToneFiabilite = "ok" | "warn" | "alert";
 
@@ -29,7 +30,7 @@ export type CompteRendu = {
   conclusion: string;
   /** Phrase clinique qui accompagne la conclusion. */
   raisonConclue: string;
-  fiabilite: { confiance: number; tone: ToneFiabilite };
+  fiabilite: { confiance: string; tone: ToneFiabilite };
 };
 
 /** Libellé clinique d'une pathologie tel que utilisé dans le compte rendu. */
@@ -43,10 +44,6 @@ const LIBELLE_MODELE: Record<string, string> = {
   tuberculose: "Modèle Tuberculose",
   pneumonie: "Modèle Pneumonie",
 };
-
-function pourcentage(confiance: number): number {
-  return Math.round(Math.max(0, Math.min(1, confiance)) * 100);
-}
 
 function formaterDate(iso: string): string {
   const d = new Date(iso);
@@ -64,7 +61,7 @@ function formaterDate(iso: string): string {
 function decrireAxe(r: ResultatDiagnostic): string | null {
   const pathologie = LIBELLE_EXAMEN[r.pathologie];
   if (!pathologie) return null;
-  const pct = pourcentage(r.confiance);
+  const pct = formatConfiance(r.confiance);
 
   if (r.prediction === "erreur") {
     return `L'axe ${pathologie} n'a pas pu être interprété (échec technique du modèle de lecture). Ce versant n'est pas renseigné.`;
@@ -75,10 +72,10 @@ function decrireAxe(r: ResultatDiagnostic): string | null {
       r.confiance >= SEUIL_INDETERMINE
         ? "La sémiologie identifiée est cohérente avec ce diagnostic."
         : "La confiance demeure toutefois modérée, ce qui invite à la prudence.";
-    return `Des arguments évocateurs de ${pathologie} sont identifiés sur le cliché, avec une probabilité estimée de ${pct} %. ${phrase}`;
+    return `Des arguments évocateurs de ${pathologie} sont identifiés sur le cliché, avec une probabilité estimée de ${pct}. ${phrase}`;
   }
 
-  return `Aucun argument radiologique en faveur de ${pathologie} n'est mis en évidence ; le parenchyme apparaît normal (probabilité de normalité estimée à ${pct} %).`;
+  return `Aucun argument radiologique en faveur de ${pathologie} n'est mis en évidence ; le parenchyme apparaît normal (probabilité de normalité estimée à ${pct}).`;
 }
 
 /** Phrase traçant un contrôle qualité, si le verdict a été relu par le modèle de contrôle. */
@@ -146,7 +143,7 @@ function determinerConclusion(resultat: ResultatAnalyse): VerdictConclu {
       prediction: determinable ? "positif" : "indetermine",
       confiance: unique.confiance,
       raison: determinable
-        ? `Le modèle spécialiste confirme ${LIBELLE_EXAMEN[unique.pathologie]} (confiance ${pourcentage(unique.confiance)} %).`
+        ? `Le modèle spécialiste confirme ${LIBELLE_EXAMEN[unique.pathologie]} (confiance ${formatConfiance(unique.confiance)}).`
         : "Le modèle est positif mais sous le seuil de confiance d'usage. Verdict prudent — relecture requise.",
     };
   }
@@ -156,7 +153,7 @@ function determinerConclusion(resultat: ResultatAnalyse): VerdictConclu {
       label: "EXAMEN NORMAL",
       prediction: "negatif",
       confiance: unique.confiance,
-      raison: `Aucune pathologie détectée (confiance de normalité ${pourcentage(unique.confiance)} %).`,
+      raison: `Aucune pathologie détectée (confiance de normalité ${formatConfiance(unique.confiance)}).`,
     };
   }
 
@@ -225,6 +222,6 @@ export function genererCompteRendu(dossier: DossierResultat): CompteRendu {
     sections,
     conclusion: verdict.label,
     raisonConclue: verdict.raison,
-    fiabilite: { confiance: pourcentage(verdict.confiance), tone: tonePourConclusion(verdict) },
+    fiabilite: { confiance: formatConfiance(verdict.confiance), tone: tonePourConclusion(verdict) },
   };
 }
